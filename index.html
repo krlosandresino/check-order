@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Check Order</title>
+    <title>Check Order - Inventario</title>
     <script src="https://cdn.sheetjs.com/xlsx-0.19.3/package/dist/xlsx.full.min.js"></script>
     <style>
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 1000px; margin: 0 auto; padding: 20px; background-color: #f0f2f5; }
@@ -11,7 +11,7 @@
         
         .form-group { background: white; padding: 25px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 20px;}
         
-        /* Estilos para el panel de Admin */
+        /* Panel Admin */
         details { background: #e9ecef; border-radius: 10px; margin-bottom: 20px; border: 1px solid #adb5bd; overflow: hidden; }
         summary { padding: 15px; cursor: pointer; font-weight: bold; background: #dee2e6; list-style: none; }
         summary:hover { background: #ced4da; }
@@ -44,9 +44,11 @@
         <summary>⚙️ Panel de Actualización de Ubicaciones</summary>
         <div class="admin-content">
             <h3>Cargar Base de Datos de Ubicaciones</h3>
-            <p style="font-size: 13px; margin-bottom: 10px;">Sube el archivo Excel para actualizar la nube. El Excel debe tener columnas "Codigo" y "Ubicacion".</p>
+            <p style="font-size: 13px; margin-bottom: 10px;">
+                ⚠️ <b>Nota:</b> Al subir un nuevo archivo, se borrarán todas las ubicaciones anteriores automáticamente.
+            </p>
             <input type="file" id="excelInput" accept=".xlsx, .xls">
-            <button class="btn-admin" onclick="procesarYSubirExcel()">☁️ Subir a la Nube</button>
+            <button class="btn-admin" onclick="procesarYSubirExcel()">☁️ Subir y Reemplazar Todo</button>
             <div id="progresoCarga" style="margin-top: 10px; font-weight: bold; color: #007bff;"></div>
         </div>
     </details>
@@ -77,7 +79,7 @@
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js";
-        import { getFirestore, collection, addDoc, onSnapshot, orderBy, query, serverTimestamp, deleteDoc, doc, writeBatch, getDocs, setDoc } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js";
+        import { getFirestore, collection, addDoc, onSnapshot, orderBy, query, serverTimestamp, deleteDoc, doc, writeBatch, getDocs } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyCzZFPcSUPwWYIe4w3IW7pDluIchGMqWoU",
@@ -93,11 +95,11 @@
         
         // Colecciones
         const colRegistros = collection(db, "registros");
-        const colUbicaciones = collection(db, "ubicaciones_diarias"); // Nueva colección para guardar el excel
+        const colUbicaciones = collection(db, "ubicaciones_diarias");
 
         let mapaUbicaciones = {};
 
-        // --- 1. CARGA INICIAL AUTOMÁTICA (DESDE LA NUBE) ---
+        // --- 1. CARGA INICIAL (DESDE LA NUBE) ---
         async function cargarUbicacionesDesdeNube() {
             const status = document.getElementById('statusDb');
             try {
@@ -105,93 +107,126 @@
                 mapaUbicaciones = {};
                 
                 if (querySnapshot.empty) {
-                    status.innerHTML = "⚠️ No hay ubicaciones cargadas en la nube.";
+                    status.innerHTML = "⚠️ No hay ubicaciones cargadas. Sube un Excel.";
                     return;
                 }
 
                 querySnapshot.forEach((doc) => {
-                    // El ID del documento es el código del producto
                     mapaUbicaciones[doc.id] = doc.data().ubicacion;
                 });
                 
-                status.innerHTML = `✅ ${Object.keys(mapaUbicaciones).length} ubicaciones cargadas desde la nube.`;
+                status.innerHTML = `✅ ${Object.keys(mapaUbicaciones).length} ubicaciones activas.`;
                 status.style.color = "green";
             } catch (error) {
-                console.error("Error cargando ubicaciones:", error);
+                console.error("Error cargando:", error);
                 status.innerHTML = "❌ Error conectando con la nube.";
-                status.style.color = "red";
             }
         }
-        
-        // Ejecutar al iniciar
         cargarUbicacionesDesdeNube();
 
-        // --- 2. LÓGICA DE ADMINISTRACIÓN (SUBIR EXCEL) ---
+        // --- FUNCION AUXILIAR: BORRAR TODO ANTES DE SUBIR ---
+        async function borrarTodaLaColeccion(coleccionRef, progresoCallback) {
+            const snapshot = await getDocs(coleccionRef);
+            if (snapshot.size === 0) return;
+
+            const batchSize = 400; 
+            let batch = writeBatch(db);
+            let contador = 0;
+            let totalBorrados = 0;
+
+            for (const docSnap of snapshot.docs) {
+                batch.delete(doc(db, "ubicaciones_diarias", docSnap.id));
+                contador++;
+                totalBorrados++;
+
+                if (contador >= batchSize) {
+                    await batch.commit();
+                    batch = writeBatch(db);
+                    contador = 0;
+                    progresoCallback(`🧹 Limpiando base antigua... (${totalBorrados} borrados)`);
+                }
+            }
+            if (contador > 0) await batch.commit();
+        }
+
+        // --- 2. LÓGICA DE SUBIDA (LIMPIAR + CARGAR) ---
         window.procesarYSubirExcel = async () => {
             const fileInput = document.getElementById('excelInput');
             const progreso = document.getElementById('progresoCarga');
 
             if(fileInput.files.length === 0) {
-                alert("Selecciona un archivo primero.");
+                alert("Selecciona un archivo Excel primero.");
                 return;
             }
 
-            progreso.innerText = "Leyendo archivo...";
+            if(!confirm("⚠️ ¿Estás seguro? Esto BORRARÁ las ubicaciones viejas y cargará las nuevas.")) {
+                return;
+            }
 
-            const reader = new FileReader();
-            reader.onload = async function(e) {
-                const data = new Uint8Array(e.target.result);
-                const workbook = XLSX.read(data, {type: 'array'});
-                const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-                const jsonData = XLSX.utils.sheet_to_json(firstSheet);
-                
-                progreso.innerText = `Procesando ${jsonData.length} productos. Subiendo a la nube...`;
+            try {
+                // A) BORRAR LO VIEJO
+                progreso.innerText = "🧹 Eliminando datos anteriores...";
+                progreso.style.color = "orange";
+                await borrarTodaLaColeccion(colUbicaciones, (msg) => progreso.innerText = msg);
 
-                // Subida por lotes (Batch) - Firestore permite 500 operaciones por lote
-                let batch = writeBatch(db);
-                let contador = 0;
-                let totalSubidos = 0;
+                // B) LEER EXCEL
+                progreso.innerText = "📂 Leyendo archivo...";
+                const reader = new FileReader();
+                reader.onload = async function(e) {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, {type: 'array'});
+                    const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+                    const jsonData = XLSX.utils.sheet_to_json(firstSheet);
+                    
+                    progreso.innerText = `🚀 Subiendo ${jsonData.length} nuevas ubicaciones...`;
+                    progreso.style.color = "blue";
 
-                try {
+                    // C) SUBIR LO NUEVO
+                    let batch = writeBatch(db);
+                    let contador = 0;
+                    let totalSubidos = 0;
+
                     for (const fila of jsonData) {
-                        if(fila.Codigo && fila.Ubicacion) {
-                            const codigoStr = String(fila.Codigo).trim();
+                        // Detectar columnas (mayúsculas o minúsculas)
+                        const codigo = fila.Codigo || fila.codigo || fila.CODIGO;
+                        const ubicacion = fila.Ubicacion || fila.ubicacion || fila.UBICACION;
+
+                        if(codigo && ubicacion) {
+                            const codigoStr = String(codigo).trim();
                             const docRef = doc(db, "ubicaciones_diarias", codigoStr);
                             
-                            // Usamos set para sobrescribir o crear
-                            batch.set(docRef, { ubicacion: fila.Ubicacion });
+                            batch.set(docRef, { ubicacion: String(ubicacion) });
                             contador++;
                             totalSubidos++;
 
-                            // Si llegamos a 450 (margen de seguridad), ejecutamos el lote y creamos uno nuevo
                             if (contador >= 450) {
                                 await batch.commit();
-                                batch = writeBatch(db); // Nuevo lote
+                                batch = writeBatch(db);
                                 contador = 0;
-                                progreso.innerText = `Subidos ${totalSubidos} productos...`;
+                                progreso.innerText = `☁️ Cargando... (${totalSubidos} listos)`;
                             }
                         }
                     }
 
-                    // Subir los restantes
-                    if (contador > 0) {
-                        await batch.commit();
-                    }
+                    if (contador > 0) await batch.commit();
 
-                    progreso.innerText = "✅ ¡Carga completada exitosamente!";
-                    alert("Base de datos actualizada en la nube. Recargando...");
-                    location.reload(); // Recargar para ver los cambios
+                    progreso.innerText = "✅ ¡Actualización completada!";
+                    progreso.style.color = "green";
+                    
+                    setTimeout(() => {
+                        alert("Base de datos renovada con éxito.");
+                        location.reload(); 
+                    }, 1000);
+                };
+                reader.readAsArrayBuffer(fileInput.files[0]);
 
-                } catch (error) {
-                    console.error(error);
-                    progreso.innerText = "❌ Error al subir datos.";
-                    alert("Hubo un error al subir los datos a Firebase.");
-                }
-            };
-            reader.readAsArrayBuffer(fileInput.files[0]);
+            } catch (error) {
+                console.error(error);
+                progreso.innerText = "❌ Error: " + error.message;
+            }
         }
 
-        // --- 3. LÓGICA DE REGISTRO (OPERACIÓN DIARIA) ---
+        // --- 3. OPERACIÓN DIARIA ---
         window.guardarDatos = async () => {
             const nombreInput = document.getElementById('nombreInput');
             const codigoInput = document.getElementById('codigoInput');
@@ -206,7 +241,6 @@
                 return;
             }
 
-            // Buscar en el objeto que cargamos al inicio
             const ubicacionEncontrada = mapaUbicaciones[codigo] || "No definida";
 
             try {
@@ -222,14 +256,14 @@
                 codigoInput.value = '';
                 cantidadInput.value = '';
                 nombreInput.focus(); 
-            } catch (e) { alert("Error al guardar."); }
+            } catch (e) { alert("Error al guardar: " + e.message); }
         }
 
         window.borrarDato = async (id) => {
-            if(confirm("¿Eliminar?")) await deleteDoc(doc(db, "registros", id));
+            if(confirm("¿Eliminar registro?")) await deleteDoc(doc(db, "registros", id));
         }
 
-        // --- 4. ESCUCHA EN TIEMPO REAL (TABLA DE PEDIDOS) ---
+        // --- 4. TABLA EN TIEMPO REAL ---
         const q = query(colRegistros, orderBy("timestamp", "desc"));
         onSnapshot(q, (snapshot) => {
             const tabla = document.getElementById('tablaCuerpo');
@@ -250,7 +284,7 @@
             });
         });
 
-        // Event Listeners para Enter
+        // Tecla Enter
         document.getElementById('nombreInput').addEventListener('keydown', (e) => {
             if (e.key === 'Enter') { e.preventDefault(); document.getElementById('codigoInput').focus(); }
         });
@@ -263,4 +297,3 @@
     </script>
 </body>
 </html>
-
