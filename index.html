@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Check Order</title>
+    <script src="https://cdn.sheetjs.com/xlsx-0.19.3/package/dist/xlsx.full.min.js"></script>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 1000px; margin: 0 auto; padding: 20px; background-color: #f0f2f5; }
+        h1 { text-align: center; color: #333; }
+        
+        .form-group { background: white; padding: 25px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 20px;}
+        
+        /* Estilos para el panel de Admin */
+        details { background: #e9ecef; border-radius: 10px; margin-bottom: 20px; border: 1px solid #adb5bd; overflow: hidden; }
+        summary { padding: 15px; cursor: pointer; font-weight: bold; background: #dee2e6; list-style: none; }
+        summary:hover { background: #ced4da; }
+        .admin-content { padding: 20px; text-align: center; border-top: 1px solid #ccc; }
+
+        input { padding: 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 16px; }
+        #nombreInput { flex: 2; min-width: 200px; }
+        #codigoInput { flex: 1; min-width: 120px; }
+        #cantidadInput { flex: 1; min-width: 100px; }
+        
+        button { padding: 12px 25px; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; color: white; transition: 0.2s; }
+        button:hover { opacity: 0.9; }
+        .btn-guardar { background-color: #28a745; }
+        .btn-borrar { background-color: #dc3545; padding: 6px 12px; font-size: 12px; }
+        .btn-admin { background-color: #6c757d; margin-top: 10px;}
+
+        table { width: 100%; border-collapse: collapse; background: white; border-radius: 10px; overflow: hidden; }
+        th, td { padding: 15px; text-align: left; border-bottom: 1px solid #eee; }
+        th { background-color: #007bff; color: white; }
+        
+        .ubicacion-tag { background: #fff3cd; color: #856404; padding: 4px 8px; border-radius: 4px; font-weight: bold; font-size: 13px; }
+        #statusDb { font-size: 14px; margin-left: 10px; color: #666; }
+    </style>
+</head>
+<body>
+
+    <h1>📦 Solicitud de código</h1>
+
+    <details>
+        <summary>⚙️ Panel de Actualización de Ubicaciones</summary>
+        <div class="admin-content">
+            <h3>Cargar Base de Datos de Ubicaciones</h3>
+            <p style="font-size: 13px; margin-bottom: 10px;">Sube el archivo Excel para actualizar la nube. El Excel debe tener columnas "Codigo" y "Ubicacion".</p>
+            <input type="file" id="excelInput" accept=".xlsx, .xls">
+            <button class="btn-admin" onclick="procesarYSubirExcel()">☁️ Subir a la Nube</button>
+            <div id="progresoCarga" style="margin-top: 10px; font-weight: bold; color: #007bff;"></div>
+        </div>
+    </details>
+
+    <div class="form-group">
+        <div style="width: 100%; margin-bottom: 10px;">
+            <span id="statusDb">⏳ Cargando ubicaciones de la nube...</span>
+        </div>
+        <input type="text" id="nombreInput" placeholder="Nombre del Check">
+        <input type="number" id="codigoInput" placeholder="Código">
+        <input type="number" id="cantidadInput" placeholder="Cantidad">
+        <button class="btn-guardar" onclick="guardarDatos()">+ Agregar</button>
+    </div>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Nombre</th>
+                <th>Código</th>
+                <th>Ubicación</th>
+                <th>Cant.</th>
+                <th>Fecha</th>
+                <th>Acción</th>
+            </tr>
+        </thead>
+        <tbody id="tablaCuerpo"></tbody>
+    </table>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js";
+        import { getFirestore, collection, addDoc, onSnapshot, orderBy, query, serverTimestamp, deleteDoc, doc, writeBatch, getDocs, setDoc } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyCzZFPcSUPwWYIe4w3IW7pDluIchGMqWoU",
+            authDomain: "inventario-web-57600.firebaseapp.com",
+            projectId: "inventario-web-57600",
+            storageBucket: "inventario-web-57600.firebasestorage.app",
+            messagingSenderId: "918058389127",
+            appId: "1:918058389127:web:5d86be464e3d80d992b222"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        
+        // Colecciones
+        const colRegistros = collection(db, "registros");
+        const colUbicaciones = collection(db, "ubicaciones_diarias"); // Nueva colección para guardar el excel
+
+        let mapaUbicaciones = {};
+
+        // --- 1. CARGA INICIAL AUTOMÁTICA (DESDE LA NUBE) ---
+        async function cargarUbicacionesDesdeNube() {
+            const status = document.getElementById('statusDb');
+            try {
+                const querySnapshot = await getDocs(colUbicaciones);
+                mapaUbicaciones = {};
+                
+                if (querySnapshot.empty) {
+                    status.innerHTML = "⚠️ No hay ubicaciones cargadas en la nube.";
+                    return;
+                }
+
+                querySnapshot.forEach((doc) => {
+                    // El ID del documento es el código del producto
+                    mapaUbicaciones[doc.id] = doc.data().ubicacion;
+                });
+                
+                status.innerHTML = `✅ ${Object.keys(mapaUbicaciones).length} ubicaciones cargadas desde la nube.`;
+                status.style.color = "green";
+            } catch (error) {
+                console.error("Error cargando ubicaciones:", error);
+                status.innerHTML = "❌ Error conectando con la nube.";
+                status.style.color = "red";
+            }
+        }
+        
+        // Ejecutar al iniciar
+        cargarUbicacionesDesdeNube();
+
+        // --- 2. LÓGICA DE ADMINISTRACIÓN (SUBIR EXCEL) ---
+        window.procesarYSubirExcel = async () => {
+            const fileInput = document.getElementById('excelInput');
+            const progreso = document.getElementById('progresoCarga');
+
+            if(fileInput.files.length === 0) {
+                alert("Selecciona un archivo primero.");
+                return;
+            }
+
+            progreso.innerText = "Leyendo archivo...";
+
+            const reader = new FileReader();
+            reader.onload = async function(e) {
+                const data = new Uint8Array(e.target.result);
+                const workbook = XLSX.read(data, {type: 'array'});
+                const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+                const jsonData = XLSX.utils.sheet_to_json(firstSheet);
+                
+                progreso.innerText = `Procesando ${jsonData.length} productos. Subiendo a la nube...`;
+
+                // Subida por lotes (Batch) - Firestore permite 500 operaciones por lote
+                let batch = writeBatch(db);
+                let contador = 0;
+                let totalSubidos = 0;
+
+                try {
+                    for (const fila of jsonData) {
+                        if(fila.Codigo && fila.Ubicacion) {
+                            const codigoStr = String(fila.Codigo).trim();
+                            const docRef = doc(db, "ubicaciones_diarias", codigoStr);
+                            
+                            // Usamos set para sobrescribir o crear
+                            batch.set(docRef, { ubicacion: fila.Ubicacion });
+                            contador++;
+                            totalSubidos++;
+
+                            // Si llegamos a 450 (margen de seguridad), ejecutamos el lote y creamos uno nuevo
+                            if (contador >= 450) {
+                                await batch.commit();
+                                batch = writeBatch(db); // Nuevo lote
+                                contador = 0;
+                                progreso.innerText = `Subidos ${totalSubidos} productos...`;
+                            }
+                        }
+                    }
+
+                    // Subir los restantes
+                    if (contador > 0) {
+                        await batch.commit();
+                    }
+
+                    progreso.innerText = "✅ ¡Carga completada exitosamente!";
+                    alert("Base de datos actualizada en la nube. Recargando...");
+                    location.reload(); // Recargar para ver los cambios
+
+                } catch (error) {
+                    console.error(error);
+                    progreso.innerText = "❌ Error al subir datos.";
+                    alert("Hubo un error al subir los datos a Firebase.");
+                }
+            };
+            reader.readAsArrayBuffer(fileInput.files[0]);
+        }
+
+        // --- 3. LÓGICA DE REGISTRO (OPERACIÓN DIARIA) ---
+        window.guardarDatos = async () => {
+            const nombreInput = document.getElementById('nombreInput');
+            const codigoInput = document.getElementById('codigoInput');
+            const cantidadInput = document.getElementById('cantidadInput');
+
+            const nombre = nombreInput.value;
+            const codigo = codigoInput.value.trim();
+            const cantidad = cantidadInput.value;
+
+            if (nombre === '' || codigo === '' || cantidad === '') {
+                alert("⚠️ Llena todos los campos.");
+                return;
+            }
+
+            // Buscar en el objeto que cargamos al inicio
+            const ubicacionEncontrada = mapaUbicaciones[codigo] || "No definida";
+
+            try {
+                await addDoc(colRegistros, {
+                    nombre,
+                    codigo,
+                    cantidad,
+                    ubicacion: ubicacionEncontrada,
+                    timestamp: serverTimestamp()
+                });
+                
+                nombreInput.value = '';
+                codigoInput.value = '';
+                cantidadInput.value = '';
+                nombreInput.focus(); 
+            } catch (e) { alert("Error al guardar."); }
+        }
+
+        window.borrarDato = async (id) => {
+            if(confirm("¿Eliminar?")) await deleteDoc(doc(db, "registros", id));
+        }
+
+        // --- 4. ESCUCHA EN TIEMPO REAL (TABLA DE PEDIDOS) ---
+        const q = query(colRegistros, orderBy("timestamp", "desc"));
+        onSnapshot(q, (snapshot) => {
+            const tabla = document.getElementById('tablaCuerpo');
+            tabla.innerHTML = "";
+            snapshot.docs.forEach(docSnap => {
+                const data = docSnap.data();
+                const fecha = data.timestamp ? data.timestamp.toDate().toLocaleString() : "...";
+                tabla.innerHTML += `
+                    <tr>
+                        <td>${data.nombre}</td>
+                        <td><strong>${data.codigo}</strong></td>
+                        <td><span class="ubicacion-tag">${data.ubicacion || 'N/A'}</span></td>
+                        <td>${data.cantidad}</td>
+                        <td style="font-size: 11px;">${fecha}</td>
+                        <td><button class="btn-borrar" onclick="borrarDato('${docSnap.id}')">X</button></td>
+                    </tr>
+                `;
+            });
+        });
+
+        // Event Listeners para Enter
+        document.getElementById('nombreInput').addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') { e.preventDefault(); document.getElementById('codigoInput').focus(); }
+        });
+        document.getElementById('codigoInput').addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') { e.preventDefault(); document.getElementById('cantidadInput').focus(); }
+        });
+        document.getElementById('cantidadInput').addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') { e.preventDefault(); window.guardarDatos(); }
+        });
+    </script>
+</body>
+</html>
+
