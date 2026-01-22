@@ -11,14 +11,13 @@
         
         .form-group { background: white; padding: 25px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 20px;}
         
-        /* Panel Admin */
         details { background: #e9ecef; border-radius: 10px; margin-bottom: 20px; border: 1px solid #adb5bd; overflow: hidden; }
         summary { padding: 15px; cursor: pointer; font-weight: bold; background: #dee2e6; list-style: none; }
         summary:hover { background: #ced4da; }
         .admin-content { padding: 20px; text-align: center; border-top: 1px solid #ccc; }
 
         input { padding: 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 16px; }
-        #nombreInput { flex: 2; min-width: 200px; }
+        #nombreInput { flex: 2; min-width: 200px; background-color: #f8f9fa; }
         #codigoInput { flex: 1; min-width: 120px; }
         #cantidadInput { flex: 1; min-width: 100px; }
         
@@ -93,177 +92,106 @@
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
         
-        // Colecciones
         const colRegistros = collection(db, "registros");
         const colUbicaciones = collection(db, "ubicaciones_diarias");
 
         let mapaUbicaciones = {};
 
-        // --- 1. CARGA INICIAL (DESDE LA NUBE) ---
+        // --- LÓGICA DE NOMBRE TEMPORAL (Se mantiene hasta cerrar/recargar) ---
+        const nombreInput = document.getElementById('nombreInput');
+        
+        // Recuperar si ya se escribió algo en esta sesión
+        if (sessionStorage.getItem('tempNombre')) {
+            nombreInput.value = sessionStorage.getItem('tempNombre');
+        }
+
+        // Guardar cada vez que el usuario escriba
+        nombreInput.addEventListener('input', (e) => {
+            sessionStorage.setItem('tempNombre', e.target.value);
+        });
+
         async function cargarUbicacionesDesdeNube() {
             const status = document.getElementById('statusDb');
             try {
                 const querySnapshot = await getDocs(colUbicaciones);
                 mapaUbicaciones = {};
-                
-                if (querySnapshot.empty) {
-                    status.innerHTML = "⚠️ No hay ubicaciones cargadas. Sube un Excel.";
-                    return;
+                if (!querySnapshot.empty) {
+                    querySnapshot.forEach((doc) => {
+                        mapaUbicaciones[doc.id] = doc.data().ubicacion;
+                    });
+                    status.innerHTML = `✅ ${Object.keys(mapaUbicaciones).length} ubicaciones activas.`;
+                    status.style.color = "green";
                 }
-
-                querySnapshot.forEach((doc) => {
-                    mapaUbicaciones[doc.id] = doc.data().ubicacion;
-                });
-                
-                status.innerHTML = `✅ ${Object.keys(mapaUbicaciones).length} ubicaciones activas.`;
-                status.style.color = "green";
-            } catch (error) {
-                console.error("Error cargando:", error);
-                status.innerHTML = "❌ Error conectando con la nube.";
-            }
+            } catch (error) { status.innerHTML = "❌ Error de conexión."; }
         }
         cargarUbicacionesDesdeNube();
 
-        // --- FUNCION AUXILIAR: BORRAR TODO ANTES DE SUBIR ---
-        async function borrarTodaLaColeccion(coleccionRef, progresoCallback) {
-            const snapshot = await getDocs(coleccionRef);
-            if (snapshot.size === 0) return;
-
-            const batchSize = 400; 
-            let batch = writeBatch(db);
-            let contador = 0;
-            let totalBorrados = 0;
-
-            for (const docSnap of snapshot.docs) {
-                batch.delete(doc(db, "ubicaciones_diarias", docSnap.id));
-                contador++;
-                totalBorrados++;
-
-                if (contador >= batchSize) {
-                    await batch.commit();
-                    batch = writeBatch(db);
-                    contador = 0;
-                    progresoCallback(`🧹 Limpiando base antigua... (${totalBorrados} borrados)`);
-                }
-            }
-            if (contador > 0) await batch.commit();
-        }
-
-        // --- 2. LÓGICA DE SUBIDA (LIMPIAR + CARGAR) ---
         window.procesarYSubirExcel = async () => {
             const fileInput = document.getElementById('excelInput');
             const progreso = document.getElementById('progresoCarga');
-
-            if(fileInput.files.length === 0) {
-                alert("Selecciona un archivo Excel primero.");
-                return;
-            }
-
-            if(!confirm("⚠️ ¿Estás seguro? Esto BORRARÁ las ubicaciones viejas y cargará las nuevas.")) {
-                return;
-            }
-
+            if(fileInput.files.length === 0) return alert("Selecciona un archivo.");
+            
             try {
-                // A) BORRAR LO VIEJO
-                progreso.innerText = "🧹 Eliminando datos anteriores...";
-                progreso.style.color = "orange";
-                await borrarTodaLaColeccion(colUbicaciones, (msg) => progreso.innerText = msg);
+                progreso.innerText = "🧹 Limpiando...";
+                const snapshot = await getDocs(colUbicaciones);
+                let batch = writeBatch(db);
+                snapshot.docs.forEach(d => batch.delete(d.ref));
+                await batch.commit();
 
-                // B) LEER EXCEL
-                progreso.innerText = "📂 Leyendo archivo...";
                 const reader = new FileReader();
-                reader.onload = async function(e) {
+                reader.onload = async (e) => {
                     const data = new Uint8Array(e.target.result);
                     const workbook = XLSX.read(data, {type: 'array'});
-                    const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-                    const jsonData = XLSX.utils.sheet_to_json(firstSheet);
+                    const jsonData = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
                     
-                    progreso.innerText = `🚀 Subiendo ${jsonData.length} nuevas ubicaciones...`;
-                    progreso.style.color = "blue";
-
-                    // C) SUBIR LO NUEVO
-                    let batch = writeBatch(db);
-                    let contador = 0;
-                    let totalSubidos = 0;
-
+                    batch = writeBatch(db);
+                    let count = 0;
                     for (const fila of jsonData) {
-                        // Detectar columnas (mayúsculas o minúsculas)
-                        const codigo = fila.Codigo || fila.codigo || fila.CODIGO;
-                        const ubicacion = fila.Ubicacion || fila.ubicacion || fila.UBICACION;
-
-                        if(codigo && ubicacion) {
-                            const codigoStr = String(codigo).trim();
-                            const docRef = doc(db, "ubicaciones_diarias", codigoStr);
-                            
-                            batch.set(docRef, { ubicacion: String(ubicacion) });
-                            contador++;
-                            totalSubidos++;
-
-                            if (contador >= 450) {
-                                await batch.commit();
-                                batch = writeBatch(db);
-                                contador = 0;
-                                progreso.innerText = `☁️ Cargando... (${totalSubidos} listos)`;
-                            }
+                        const cod = fila.Codigo || fila.codigo || fila.CODIGO;
+                        const ubi = fila.Ubicacion || fila.ubicacion || fila.UBICACION;
+                        if(cod) {
+                            batch.set(doc(db, "ubicaciones_diarias", String(cod).trim()), { ubicacion: String(ubi) });
+                            count++;
                         }
+                        if(count >= 400) { await batch.commit(); batch = writeBatch(db); count = 0; }
                     }
-
-                    if (contador > 0) await batch.commit();
-
-                    progreso.innerText = "✅ ¡Actualización completada!";
-                    progreso.style.color = "green";
-                    
-                    setTimeout(() => {
-                        alert("Base de datos renovada con éxito.");
-                        location.reload(); 
-                    }, 1000);
+                    await batch.commit();
+                    location.reload();
                 };
                 reader.readAsArrayBuffer(fileInput.files[0]);
-
-            } catch (error) {
-                console.error(error);
-                progreso.innerText = "❌ Error: " + error.message;
-            }
+            } catch (error) { alert(error.message); }
         }
 
-        // --- 3. OPERACIÓN DIARIA ---
         window.guardarDatos = async () => {
-            const nombreInput = document.getElementById('nombreInput');
             const codigoInput = document.getElementById('codigoInput');
             const cantidadInput = document.getElementById('cantidadInput');
 
-            const nombre = nombreInput.value;
+            const nombre = nombreInput.value.trim();
             const codigo = codigoInput.value.trim();
             const cantidad = cantidadInput.value;
 
-            if (nombre === '' || codigo === '' || cantidad === '') {
-                alert("⚠️ Llena todos los campos.");
-                return;
-            }
-
-            const ubicacionEncontrada = mapaUbicaciones[codigo] || "No definida";
+            if (!nombre || !codigo || !cantidad) return alert("Llena todos los campos.");
 
             try {
                 await addDoc(colRegistros, {
                     nombre,
                     codigo,
                     cantidad,
-                    ubicacion: ubicacionEncontrada,
+                    ubicacion: mapaUbicaciones[codigo] || "No definida",
                     timestamp: serverTimestamp()
                 });
                 
-                nombreInput.value = '';
+                // NOTA: No borramos el nombre para que siga disponible en el siguiente registro
                 codigoInput.value = '';
                 cantidadInput.value = '';
-                nombreInput.focus(); 
-            } catch (e) { alert("Error al guardar: " + e.message); }
+                codigoInput.focus(); 
+            } catch (e) { alert("Error: " + e.message); }
         }
 
         window.borrarDato = async (id) => {
-            if(confirm("¿Eliminar registro?")) await deleteDoc(doc(db, "registros", id));
+            if(confirm("¿Eliminar?")) await deleteDoc(doc(db, "registros", id));
         }
 
-        // --- 4. TABLA EN TIEMPO REAL ---
         const q = query(colRegistros, orderBy("timestamp", "desc"));
         onSnapshot(q, (snapshot) => {
             const tabla = document.getElementById('tablaCuerpo');
@@ -275,7 +203,7 @@
                     <tr>
                         <td>${data.nombre}</td>
                         <td><strong>${data.codigo}</strong></td>
-                        <td><span class="ubicacion-tag">${data.ubicacion || 'N/A'}</span></td>
+                        <td><span class="ubicacion-tag">${data.ubicacion}</span></td>
                         <td>${data.cantidad}</td>
                         <td style="font-size: 11px;">${fecha}</td>
                         <td><button class="btn-borrar" onclick="borrarDato('${docSnap.id}')">X</button></td>
@@ -284,16 +212,10 @@
             });
         });
 
-        // Tecla Enter
-        document.getElementById('nombreInput').addEventListener('keydown', (e) => {
-            if (e.key === 'Enter') { e.preventDefault(); document.getElementById('codigoInput').focus(); }
-        });
-        document.getElementById('codigoInput').addEventListener('keydown', (e) => {
-            if (e.key === 'Enter') { e.preventDefault(); document.getElementById('cantidadInput').focus(); }
-        });
-        document.getElementById('cantidadInput').addEventListener('keydown', (e) => {
-            if (e.key === 'Enter') { e.preventDefault(); window.guardarDatos(); }
-        });
+        // Enter keys
+        nombreInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') codigoInput.focus(); });
+        codigoInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') cantidadInput.focus(); });
+        cantidadInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') window.guardarDatos(); });
     </script>
 </body>
 </html>
