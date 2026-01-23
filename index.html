@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Check Order</title>
+    <title>Check Order </title>
     <script src="https://cdn.sheetjs.com/xlsx-0.19.3/package/dist/xlsx.full.min.js"></script>
     <style>
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 1000px; margin: 0 auto; padding: 20px; background-color: #f0f2f5; }
@@ -97,19 +97,16 @@
 
         let mapaUbicaciones = {};
 
-        // --- LÓGICA DE NOMBRE TEMPORAL (Se mantiene hasta cerrar/recargar) ---
+        // --- LÓGICA DE NOMBRE TEMPORAL ---
         const nombreInput = document.getElementById('nombreInput');
-        
-        // Recuperar si ya se escribió algo en esta sesión
         if (sessionStorage.getItem('tempNombre')) {
             nombreInput.value = sessionStorage.getItem('tempNombre');
         }
-
-        // Guardar cada vez que el usuario escriba
         nombreInput.addEventListener('input', (e) => {
             sessionStorage.setItem('tempNombre', e.target.value);
         });
 
+        // --- CARGAR UBICACIONES AL INICIO ---
         async function cargarUbicacionesDesdeNube() {
             const status = document.getElementById('statusDb');
             try {
@@ -121,47 +118,97 @@
                     });
                     status.innerHTML = `✅ ${Object.keys(mapaUbicaciones).length} ubicaciones activas.`;
                     status.style.color = "green";
+                } else {
+                    status.innerHTML = `⚠️ Base de datos vacía.`;
                 }
             } catch (error) { status.innerHTML = "❌ Error de conexión."; }
         }
         cargarUbicacionesDesdeNube();
 
+        // --- FUNCIÓN CORREGIDA PARA LOTES GRANDES ---
         window.procesarYSubirExcel = async () => {
             const fileInput = document.getElementById('excelInput');
             const progreso = document.getElementById('progresoCarga');
+            
             if(fileInput.files.length === 0) return alert("Selecciona un archivo.");
             
             try {
-                progreso.innerText = "🧹 Limpiando...";
-                const snapshot = await getDocs(colUbicaciones);
-                let batch = writeBatch(db);
-                snapshot.docs.forEach(d => batch.delete(d.ref));
-                await batch.commit();
+                // 1. LEER EXCEL
+                progreso.innerText = "📂 Leyendo archivo Excel...";
+                const file = fileInput.files[0];
+                const data = await file.arrayBuffer();
+                const workbook = XLSX.read(data, {type: 'array'});
+                const jsonData = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
 
-                const reader = new FileReader();
-                reader.onload = async (e) => {
-                    const data = new Uint8Array(e.target.result);
-                    const workbook = XLSX.read(data, {type: 'array'});
-                    const jsonData = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
-                    
-                    batch = writeBatch(db);
+                if (jsonData.length === 0) throw new Error("El archivo está vacío.");
+
+                // 2. BORRAR DATOS ANTIGUOS (EN LOTES DE 400)
+                progreso.innerText = "🧹 Analizando datos antiguos...";
+                const snapshot = await getDocs(colUbicaciones);
+                const totalBorrar = snapshot.docs.length;
+                
+                if (totalBorrar > 0) {
+                    progreso.innerText = `🗑️ Borrando ${totalBorrar} ubicaciones antiguas...`;
+                    let batch = writeBatch(db);
                     let count = 0;
-                    for (const fila of jsonData) {
-                        const cod = fila.Codigo || fila.codigo || fila.CODIGO;
-                        const ubi = fila.Ubicacion || fila.ubicacion || fila.UBICACION;
-                        if(cod) {
-                            batch.set(doc(db, "ubicaciones_diarias", String(cod).trim()), { ubicacion: String(ubi) });
-                            count++;
+                    let batchCount = 0;
+
+                    for (const doc of snapshot.docs) {
+                        batch.delete(doc.ref);
+                        count++;
+                        if (count >= 400) {
+                            await batch.commit();
+                            batch = writeBatch(db);
+                            count = 0;
+                            batchCount++;
+                            progreso.innerText = `🗑️ Borrando... (Lote ${batchCount} completado)`;
                         }
-                        if(count >= 400) { await batch.commit(); batch = writeBatch(db); count = 0; }
                     }
-                    await batch.commit();
+                    if (count > 0) await batch.commit();
+                }
+
+                // 3. SUBIR NUEVOS DATOS (EN LOTES DE 400)
+                progreso.innerText = `🚀 Preparando ${jsonData.length} nuevas ubicaciones...`;
+                let batch = writeBatch(db);
+                let count = 0;
+                let subidos = 0;
+
+                for (const fila of jsonData) {
+                    const cod = fila.Codigo || fila.codigo || fila.CODIGO;
+                    const ubi = fila.Ubicacion || fila.ubicacion || fila.UBICACION;
+
+                    if(cod) {
+                        batch.set(doc(db, "ubicaciones_diarias", String(cod).trim()), { ubicacion: String(ubi) });
+                        count++;
+                        subidos++;
+                    }
+
+                    if(count >= 400) { 
+                        await batch.commit(); 
+                        progreso.innerText = `☁️ Subiendo... (${subidos} de ${jsonData.length})`;
+                        batch = writeBatch(db); 
+                        count = 0; 
+                    }
+                }
+                if (count > 0) await batch.commit();
+
+                progreso.innerText = "✅ ¡Carga completada!";
+                progreso.style.color = "green";
+                
+                setTimeout(() => {
+                    alert(`Éxito: Se cargaron ${subidos} ubicaciones.`);
                     location.reload();
-                };
-                reader.readAsArrayBuffer(fileInput.files[0]);
-            } catch (error) { alert(error.message); }
+                }, 1000);
+
+            } catch (error) { 
+                console.error(error);
+                progreso.innerText = "❌ Error: " + error.message;
+                progreso.style.color = "red";
+                alert("Error: " + error.message); 
+            }
         }
 
+        // --- GUARDAR REGISTRO ---
         window.guardarDatos = async () => {
             const codigoInput = document.getElementById('codigoInput');
             const cantidadInput = document.getElementById('cantidadInput');
@@ -181,17 +228,18 @@
                     timestamp: serverTimestamp()
                 });
                 
-                // NOTA: No borramos el nombre para que siga disponible en el siguiente registro
                 codigoInput.value = '';
                 cantidadInput.value = '';
                 codigoInput.focus(); 
-            } catch (e) { alert("Error: " + e.message); }
+            } catch (e) { alert("Error al guardar: " + e.message); }
         }
 
+        // --- BORRAR REGISTRO ---
         window.borrarDato = async (id) => {
-            if(confirm("¿Eliminar?")) await deleteDoc(doc(db, "registros", id));
+            if(confirm("¿Eliminar registro?")) await deleteDoc(doc(db, "registros", id));
         }
 
+        // --- ESCUCHAR CAMBIOS EN TIEMPO REAL ---
         const q = query(colRegistros, orderBy("timestamp", "desc"));
         onSnapshot(q, (snapshot) => {
             const tabla = document.getElementById('tablaCuerpo');
@@ -212,7 +260,7 @@
             });
         });
 
-        // Enter keys
+        // --- ATAJOS DE TECLADO ---
         nombreInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') codigoInput.focus(); });
         codigoInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') cantidadInput.focus(); });
         cantidadInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') window.guardarDatos(); });
