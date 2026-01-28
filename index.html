@@ -236,7 +236,7 @@
 
         // --- BORRAR REGISTRO ---
         window.borrarDato = async (id) => {
-            if(confirm("¿Eliminar registro?")) await deleteDoc(doc(db, "registros", id));
+            if(confirm("¿Desea entregar?")) await deleteDoc(doc(db, "registros", id));
         }
 
         // --- ESCUCHAR CAMBIOS EN TIEMPO REAL ---
@@ -254,7 +254,7 @@
                         <td><span class="ubicacion-tag">${data.ubicacion}</span></td>
                         <td>${data.cantidad}</td>
                         <td style="font-size: 11px;">${fecha}</td>
-                        <td><button class="btn-borrar" onclick="borrarDato('${docSnap.id}')">X</button></td>
+                        <td><button class="btn-borrar" onclick="borrarDato('${docSnap.id}')">Entregar</button></td>
                     </tr>
                 `;
             });
