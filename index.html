@@ -17,7 +17,7 @@
         .admin-content { padding: 20px; text-align: center; border-top: 1px solid #ccc; }
 
         input { padding: 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 16px; }
-        #nombreInput { flex: 2; min-width: 200px; background-color: #f8f9fa; }
+        #nombreInput { flex: 2; min-width: 200px; background-color: #f8f9fa; text-transform: uppercase; }
         #codigoInput { flex: 1; min-width: 120px; }
         #cantidadInput { flex: 1; min-width: 100px; }
         
@@ -125,7 +125,7 @@
         }
         cargarUbicacionesDesdeNube();
 
-        // --- FUNCIÓN CORREGIDA PARA LOTES GRANDES ---
+        // --- FUNCIÓN PARA LOTES GRANDES ---
         window.procesarYSubirExcel = async () => {
             const fileInput = document.getElementById('excelInput');
             const progreso = document.getElementById('progresoCarga');
@@ -133,7 +133,6 @@
             if(fileInput.files.length === 0) return alert("Selecciona un archivo.");
             
             try {
-                // 1. LEER EXCEL
                 progreso.innerText = "📂 Leyendo archivo Excel...";
                 const file = fileInput.files[0];
                 const data = await file.arrayBuffer();
@@ -142,7 +141,6 @@
 
                 if (jsonData.length === 0) throw new Error("El archivo está vacío.");
 
-                // 2. BORRAR DATOS ANTIGUOS (EN LOTES DE 400)
                 progreso.innerText = "🧹 Analizando datos antiguos...";
                 const snapshot = await getDocs(colUbicaciones);
                 const totalBorrar = snapshot.docs.length;
@@ -167,7 +165,6 @@
                     if (count > 0) await batch.commit();
                 }
 
-                // 3. SUBIR NUEVOS DATOS (EN LOTES DE 400)
                 progreso.innerText = `🚀 Preparando ${jsonData.length} nuevas ubicaciones...`;
                 let batch = writeBatch(db);
                 let count = 0;
@@ -213,7 +210,8 @@
             const codigoInput = document.getElementById('codigoInput');
             const cantidadInput = document.getElementById('cantidadInput');
 
-            const nombre = nombreInput.value.trim();
+            // Nombre procesado en MAYÚSCULAS
+            const nombre = nombreInput.value.trim().toUpperCase();
             const codigo = codigoInput.value.trim();
             const cantidad = cantidadInput.value;
 
