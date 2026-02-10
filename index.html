@@ -3,36 +3,29 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Check Order </title>
+    <title>Check Order</title>
     <script src="https://cdn.sheetjs.com/xlsx-0.19.3/package/dist/xlsx.full.min.js"></script>
     <style>
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 1000px; margin: 0 auto; padding: 20px; background-color: #f0f2f5; }
         h1 { text-align: center; color: #333; }
-        
         .form-group { background: white; padding: 25px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 20px;}
-        
         details { background: #e9ecef; border-radius: 10px; margin-bottom: 20px; border: 1px solid #adb5bd; overflow: hidden; }
         summary { padding: 15px; cursor: pointer; font-weight: bold; background: #dee2e6; list-style: none; }
         summary:hover { background: #ced4da; }
         .admin-content { padding: 20px; text-align: center; border-top: 1px solid #ccc; }
-
         input { padding: 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 16px; }
         #nombreInput { flex: 2; min-width: 200px; background-color: #f8f9fa; text-transform: uppercase; }
         #codigoInput { flex: 1; min-width: 120px; }
         #cantidadInput { flex: 1; min-width: 100px; }
-        
         button { padding: 12px 25px; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; color: white; transition: 0.2s; }
         button:hover { opacity: 0.9; }
         .btn-guardar { background-color: #28a745; }
         .btn-borrar { background-color: #dc3545; padding: 6px 12px; font-size: 12px; }
         .btn-admin { background-color: #6c757d; margin-top: 10px;}
-        
         .btn-descargar { background-color: #007bff; margin-top: 10px; width: 100%; font-size: 16px; }
-
         table { width: 100%; border-collapse: collapse; background: white; border-radius: 10px; overflow: hidden; }
         th, td { padding: 15px; text-align: left; border-bottom: 1px solid #eee; }
         th { background-color: #007bff; color: white; }
-        
         .ubicacion-tag { background: #fff3cd; color: #856404; padding: 4px 8px; border-radius: 4px; font-weight: bold; font-size: 13px; }
         #statusDb { font-size: 14px; margin-left: 10px; color: #666; }
     </style>
@@ -53,13 +46,12 @@
 
     <div class="form-group">
         <div style="width: 100%; margin-bottom: 10px;">
-            <span id="statusDb">⏳ Cargando ubicaciones de la nube...</span>
+            <span id="statusDb">⏳ Cargando ubicaciones...</span>
         </div>
         <input type="text" id="nombreInput" placeholder="Nombre del Check">
         <input type="number" id="codigoInput" placeholder="Código">
         <input type="number" id="cantidadInput" placeholder="Cantidad">
         <button class="btn-guardar" onclick="guardarDatos()">+ Agregar</button>
-        
         <button class="btn-descargar" onclick="descargarYLimpiarHistorial()">📥 Descargar reporte y Limpiar registro</button>
     </div>
 
@@ -79,7 +71,7 @@
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js";
-        import { getFirestore, collection, addDoc, onSnapshot, orderBy, query, serverTimestamp, deleteDoc, doc, writeBatch, getDocs } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js";
+        import { getFirestore, collection, addDoc, onSnapshot, orderBy, query, serverTimestamp, deleteDoc, doc, writeBatch, getDocs, limit } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyCzZFPcSUPwWYIe4w3IW7pDluIchGMqWoU",
@@ -151,9 +143,6 @@
                 if (querySnapshot.empty) return alert("No hay datos para descargar.");
 
                 const datosParaExcel = [];
-                let batch = writeBatch(db);
-                let count = 0;
-
                 querySnapshot.forEach((docSnap) => {
                     const d = docSnap.data();
                     datosParaExcel.push({
@@ -163,24 +152,31 @@
                         "Cantidad": d.cantidad,
                         "Fecha/Hora": d.timestamp ? d.timestamp.toDate().toLocaleString() : ""
                     });
-                    // Agregamos para borrar del historial
-                    batch.delete(docSnap.ref);
-                    count++;
                 });
 
-                // 1. Descargar archivo
                 const ws = XLSX.utils.json_to_sheet(datosParaExcel);
                 const wb = XLSX.utils.book_new();
                 XLSX.utils.book_append_sheet(wb, ws, "Reporte");
                 XLSX.writeFile(wb, `Reporte_Final_${new Date().getTime()}.xlsx`);
 
-                // 2. Limpiar historial en la nube
-                await batch.commit();
-                alert("Excel descargado e historial limpiado correctamente.");
-
+                // Borrado seguro por lotes
+                let batch = writeBatch(db);
+                let count = 0;
+                for (const docSnap of querySnapshot.docs) {
+                    batch.delete(docSnap.ref);
+                    count++;
+                    if (count === 450) {
+                        await batch.commit();
+                        batch = writeBatch(db);
+                        count = 0;
+                    }
+                }
+                if (count > 0) await batch.commit();
+                
+                alert("Excel descargado e historial limpiado.");
             } catch (error) { alert("Error: " + error.message); }
             finally { 
-                btn.innerText = "📥 Descargar y Limpiar Historial (Excel)"; 
+                btn.innerText = "📥 Descargar reporte y Limpiar registro"; 
                 btn.disabled = false; 
             }
         };
@@ -199,13 +195,65 @@
             });
         });
 
-        // Eventos de teclado
+        // FUNCIÓN DE CARGA CORREGIDA
+        window.procesarYSubirExcel = async () => {
+            const fileInput = document.getElementById('excelInput');
+            const progreso = document.getElementById('progresoCarga');
+            if (!fileInput.files[0]) return alert("Selecciona un archivo.");
+
+            try {
+                progreso.innerText = "⏳ Leyendo archivo...";
+                const data = await fileInput.files[0].arrayBuffer();
+                const workbook = XLSX.read(data);
+                const jsonData = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
+
+                if (jsonData.length === 0) return alert("Excel vacío.");
+
+                progreso.innerText = "⏳ Limpiando base de datos (paso a paso)...";
+                
+                // Limpieza por lotes pequeños para evitar el error de transacción
+                let totalBorrados = 0;
+                while (true) {
+                    const snap = await getDocs(query(colUbicaciones, limit(450)));
+                    if (snap.empty) break;
+                    const batchDel = writeBatch(db);
+                    snap.docs.forEach(d => batchDel.delete(d.ref));
+                    await batchDel.commit();
+                    totalBorrados += snap.size;
+                    progreso.innerText = `⏳ Borrando antiguos: ${totalBorrados}...`;
+                }
+
+                progreso.innerText = `🚀 Subiendo ${jsonData.length} nuevas ubicaciones...`;
+                
+                // Subida por lotes controlados
+                for (let i = 0; i < jsonData.length; i += 400) {
+                    const batchSubida = writeBatch(db);
+                    const chunk = jsonData.slice(i, i + 400);
+                    
+                    chunk.forEach(fila => {
+                        const codigo = String(fila.codigo || fila.Codigo || "").trim();
+                        const ubicacion = String(fila.ubicacion || fila.Ubicacion || "").trim();
+                        if (codigo) {
+                            const docRef = doc(colUbicaciones, codigo);
+                            batchSubida.set(docRef, { ubicacion: ubicacion });
+                        }
+                    });
+                    
+                    await batchSubida.commit();
+                    progreso.innerText = `🚀 Subiendo... (${Math.min(i + 400, jsonData.length)} de ${jsonData.length})`;
+                }
+
+                progreso.innerText = "✅ ¡Todo listo!";
+                cargarUbicacionesDesdeNube();
+            } catch (error) {
+                console.error(error);
+                progreso.innerText = "❌ Error: " + error.message;
+            }
+        };
+
         nombreInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') document.getElementById('codigoInput').focus(); });
         document.getElementById('codigoInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') document.getElementById('cantidadInput').focus(); });
         document.getElementById('cantidadInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') window.guardarDatos(); });
-
-        // Función de carga masiva original mantenida internamente
-        window.procesarYSubirExcel = async () => { /* ... lógica de carga de ubicaciones ... */ };
     </script>
 </body>
 </html>
