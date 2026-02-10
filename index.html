@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Check Order</title>
+    <title>Check Order - Unified</title>
     <script src="https://cdn.sheetjs.com/xlsx-0.19.3/package/dist/xlsx.full.min.js"></script>
     <style>
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 1000px; margin: 0 auto; padding: 20px; background-color: #f0f2f5; }
@@ -23,6 +23,10 @@
         .btn-borrar { background-color: #dc3545; padding: 6px 12px; font-size: 12px; }
         .btn-admin { background-color: #6c757d; margin-top: 10px;}
         .btn-descargar { background-color: #007bff; margin-top: 10px; width: 100%; font-size: 16px; }
+        /* NUEVO ESTILO BOTÓN LIMPIAR TODO */
+        .btn-borrar-todo { background-color: #f39c12; margin-top: 10px; width: 100%; font-size: 16px; }
+        .btn-borrar-todo:hover { background-color: #e67e22; }
+        
         table { width: 100%; border-collapse: collapse; background: white; border-radius: 10px; overflow: hidden; }
         th, td { padding: 15px; text-align: left; border-bottom: 1px solid #eee; }
         th { background-color: #007bff; color: white; }
@@ -53,6 +57,7 @@
         <input type="number" id="cantidadInput" placeholder="Cantidad">
         <button class="btn-guardar" onclick="guardarDatos()">+ Agregar</button>
         <button class="btn-descargar" onclick="descargarYLimpiarHistorial()">📥 Descargar reporte y Limpiar registro</button>
+        <button class="btn-borrar-todo" onclick="limpiarTodoVista()">🗑️ Limpiar Todo (Solo Vista)</button>
     </div>
 
     <table>
@@ -131,6 +136,39 @@
             } catch (e) { alert("Error: " + e.message); }
         }
 
+        // NUEVA FUNCIÓN PARA LIMPIAR TODO EL REGISTRO VISIBLE
+        window.limpiarTodoVista = async () => {
+            if(!confirm("¿Desea borrar TODOS los registros de la lista actual?")) return;
+            
+            const btn = document.querySelector('.btn-borrar-todo');
+            try {
+                btn.innerText = "⏳ Borrando...";
+                btn.disabled = true;
+
+                const querySnapshot = await getDocs(colRegistros);
+                if (querySnapshot.empty) return alert("No hay registros para borrar.");
+
+                let batch = writeBatch(db);
+                let count = 0;
+                for (const docSnap of querySnapshot.docs) {
+                    batch.delete(docSnap.ref);
+                    count++;
+                    if (count === 450) {
+                        await batch.commit();
+                        batch = writeBatch(db);
+                        count = 0;
+                    }
+                }
+                if (count > 0) await batch.commit();
+                
+                alert("Registros eliminados de la lista.");
+            } catch (error) { alert("Error: " + error.message); }
+            finally { 
+                btn.innerText = "🗑️ Limpiar Todo (Solo Vista)"; 
+                btn.disabled = false; 
+            }
+        };
+
         window.descargarYLimpiarHistorial = async () => {
             if(!confirm("Esto descargará el Excel y borrará el historial de la nube para un nuevo reporte. ¿Continuar?")) return;
             
@@ -159,7 +197,6 @@
                 XLSX.utils.book_append_sheet(wb, ws, "Reporte");
                 XLSX.writeFile(wb, `Reporte_Final_${new Date().getTime()}.xlsx`);
 
-                // Borrado seguro por lotes
                 let batch = writeBatch(db);
                 let count = 0;
                 for (const docSnap of querySnapshot.docs) {
@@ -195,7 +232,6 @@
             });
         });
 
-        // FUNCIÓN DE CARGA CORREGIDA
         window.procesarYSubirExcel = async () => {
             const fileInput = document.getElementById('excelInput');
             const progreso = document.getElementById('progresoCarga');
@@ -209,23 +245,18 @@
 
                 if (jsonData.length === 0) return alert("Excel vacío.");
 
-                progreso.innerText = "⏳ Limpiando base de datos (paso a paso)...";
+                progreso.innerText = "⏳ Limpiando base de datos...";
                 
-                // Limpieza por lotes pequeños para evitar el error de transacción
-                let totalBorrados = 0;
                 while (true) {
                     const snap = await getDocs(query(colUbicaciones, limit(450)));
                     if (snap.empty) break;
                     const batchDel = writeBatch(db);
                     snap.docs.forEach(d => batchDel.delete(d.ref));
                     await batchDel.commit();
-                    totalBorrados += snap.size;
-                    progreso.innerText = `⏳ Borrando antiguos: ${totalBorrados}...`;
                 }
 
-                progreso.innerText = `🚀 Subiendo ${jsonData.length} nuevas ubicaciones...`;
+                progreso.innerText = `🚀 Subiendo nuevas ubicaciones...`;
                 
-                // Subida por lotes controlados
                 for (let i = 0; i < jsonData.length; i += 400) {
                     const batchSubida = writeBatch(db);
                     const chunk = jsonData.slice(i, i + 400);
@@ -238,15 +269,12 @@
                             batchSubida.set(docRef, { ubicacion: ubicacion });
                         }
                     });
-                    
                     await batchSubida.commit();
-                    progreso.innerText = `🚀 Subiendo... (${Math.min(i + 400, jsonData.length)} de ${jsonData.length})`;
                 }
 
                 progreso.innerText = "✅ ¡Todo listo!";
                 cargarUbicacionesDesdeNube();
             } catch (error) {
-                console.error(error);
                 progreso.innerText = "❌ Error: " + error.message;
             }
         };
