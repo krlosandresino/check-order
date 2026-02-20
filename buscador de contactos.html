@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Buscador de contactos</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap');
+    body { font-family: 'Inter', sans-serif; }
+    .glass-card { background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(10px); }
+    .step-number { width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; border-radius: 50%; background: #4f46e5; color: white; font-weight: bold; font-size: 0.8rem; }
+  </style>
+</head>
+<body class="bg-slate-50 min-h-screen pb-20">
+
+  <div class="max-w-4xl mx-auto pt-10 px-4">
+    <header class="text-center mb-10">
+      <div class="inline-block p-3 bg-indigo-600 rounded-2xl mb-4 shadow-lg shadow-indigo-200">
+        <i data-lucide="users-2" class="text-white w-8 h-8"></i>
+      </div>
+      <h1 class="text-3xl font-bold text-slate-800">Buscador de Contactos</h1>
+      <p class="text-slate-500 mt-2">Cruce de información por código de socio</p>
+    </header>
+
+    <div class="glass-card shadow-xl rounded-3xl p-8 border border-slate-100">
+      <div class="grid md:grid-cols-2 gap-8">
+        
+        <div class="space-y-4">
+          <div class="flex items-center gap-3 mb-2">
+            <span class="step-number">1</span>
+            <h3 class="font-semibold text-slate-700">Socios del Cliente</h3>
+          </div>
+          <label class="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-slate-300 rounded-2xl cursor-pointer hover:bg-slate-50 hover:border-indigo-400 transition-all">
+            <div class="flex flex-col items-center justify-center pt-5 pb-6">
+              <i data-lucide="file-up" class="w-8 h-8 text-slate-400 mb-2"></i>
+              <p class="text-xs text-slate-500" id="nameCliente">Seleccionar archivo Excel</p>
+            </div>
+            <input type="file" id="excelCliente" class="hidden" accept=".xlsx,.xls" onchange="updateFileName('excelCliente', 'nameCliente')" />
+          </label>
+        </div>
+
+        <div class="space-y-4">
+          <div class="flex items-center gap-3 mb-2">
+            <span class="step-number">2</span>
+            <h3 class="font-semibold text-slate-700">Base de Datos Interna</h3>
+          </div>
+          <label class="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-slate-300 rounded-2xl cursor-pointer hover:bg-slate-50 hover:border-indigo-400 transition-all">
+            <div class="flex flex-col items-center justify-center pt-5 pb-6">
+              <i data-lucide="database" class="w-8 h-8 text-slate-400 mb-2"></i>
+              <p class="text-xs text-slate-500" id="nameBase">Seleccionar archivo Excel</p>
+            </div>
+            <input type="file" id="excelBase" class="hidden" accept=".xlsx,.xls" onchange="updateFileName('excelBase', 'nameBase')" />
+          </label>
+        </div>
+
+      </div>
+
+      <div class="mt-10 flex flex-col sm:flex-row gap-4">
+        <button onclick="procesarArchivos()" class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3 px-6 rounded-xl shadow-lg shadow-indigo-100 transition-all flex items-center justify-center gap-2">
+          <i data-lucide="search" class="w-5 h-5"></i>
+          Buscar Coincidencias
+        </button>
+        <button onclick="descargarExcel()" class="flex-1 bg-emerald-500 hover:bg-emerald-600 text-white font-semibold py-3 px-6 rounded-xl shadow-lg shadow-emerald-100 transition-all flex items-center justify-center gap-2">
+          <i data-lucide="download" class="w-5 h-5"></i>
+          Descargar Resultados
+        </button>
+      </div>
+    </div>
+
+    <div id="containerResultado" class="mt-10 hidden animate-in fade-in slide-in-from-bottom-4 duration-500">
+      <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+        <div class="px-6 py-4 border-b border-slate-100 bg-slate-50 flex justify-between items-center">
+            <h3 class="font-bold text-slate-700">Panel de Resultados</h3>
+            <span id="contadorResultados" class="text-xs font-medium px-2.5 py-0.5 rounded-full bg-indigo-100 text-indigo-800"></span>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-sm">
+            <thead class="bg-slate-50 text-slate-500 uppercase text-[11px] font-bold">
+              <tr>
+                <th class="px-6 py-4">Código Socio</th>
+                <th class="px-6 py-4">Nombre Completo</th>
+                <th class="px-6 py-4">Información Contacto</th>
+                <th class="px-6 py-4 text-center">Estado</th>
+              </tr>
+            </thead>
+            <tbody id="resultadoBody" class="divide-y divide-slate-100">
+              </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+let sociosCliente = [];
+let baseDatos = [];
+let resultados = [];
+
+// Inicializar iconos
+lucide.createIcons();
+
+function updateFileName(inputId, labelId) {
+    const input = document.getElementById(inputId);
+    const label = document.getElementById(labelId);
+    if (input.files.length > 0) {
+        label.innerText = input.files[0].name;
+        label.classList.add('text-indigo-600', 'font-semibold');
+    }
+}
+
+function leerExcel(file, callback) {
+  const reader = new FileReader();
+  reader.onload = e => {
+    const data = new Uint8Array(e.target.result);
+    const workbook = XLSX.read(data, { type: 'array' });
+    const hoja = workbook.Sheets[workbook.SheetNames[0]];
+    callback(XLSX.utils.sheet_to_json(hoja));
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function procesarArchivos() {
+  const fileCliente = document.getElementById('excelCliente').files[0];
+  const fileBase = document.getElementById('excelBase').files[0];
+
+  if (!fileCliente || !fileBase) {
+    alert('Por favor, selecciona ambos archivos para continuar.');
+    return;
+  }
+
+  leerExcel(fileCliente, dataCliente => {
+    sociosCliente = dataCliente;
+    leerExcel(fileBase, dataBase => {
+      baseDatos = dataBase;
+      buscarContactos();
+    });
+  });
+}
+
+function buscarContactos() {
+  resultados = [];
+  const tbody = document.getElementById('resultadoBody');
+  tbody.innerHTML = '';
+  document.getElementById('containerResultado').classList.remove('hidden');
+
+  sociosCliente.forEach(socio => {
+    const codigo = socio.codigo || socio.CODIGO || socio.Codigo;
+    const encontrado = baseDatos.find(b =>
+      String(b.codigo || b.CODIGO || b.Codigo) === String(codigo)
+    );
+
+    let rowData = {
+        codigo: codigo || 'N/A',
+        nombre: '-',
+        contacto: '-',
+        estado: 'NO REGISTRADO',
+        clase: 'bg-red-50 text-red-700'
+    };
+
+    if (encontrado) {
+        rowData.nombre = encontrado.nombre || encontrado.Nombre || '';
+        rowData.contacto = encontrado.contacto || encontrado.Telefono || encontrado.Email || '';
+        rowData.estado = 'ENCONTRADO';
+        rowData.clase = 'bg-emerald-50 text-emerald-700';
+    }
+
+    resultados.push({
+        codigo: rowData.codigo,
+        nombre: rowData.nombre,
+        contacto: rowData.contacto,
+        estado: rowData.estado
+    });
+
+    const tr = document.createElement('tr');
+    tr.className = "hover:bg-slate-50 transition-colors";
+    tr.innerHTML = `
+      <td class="px-6 py-4 font-mono font-medium text-slate-600">${rowData.codigo}</td>
+      <td class="px-6 py-4 text-slate-700">${rowData.nombre}</td>
+      <td class="px-6 py-4 text-slate-500 italic">${rowData.contacto}</td>
+      <td class="px-6 py-4 text-center">
+        <span class="px-3 py-1 rounded-full text-xs font-bold ${rowData.clase}">
+            ${rowData.estado}
+        </span>
+      </td>
+    `;
+    tbody.appendChild(tr);
+  });
+
+  document.getElementById('contadorResultados').innerText = `${resultados.length} registros procesados`;
+}
+
+function descargarExcel() {
+  if (resultados.length === 0) {
+    alert('No hay datos para exportar. Realiza una búsqueda primero.');
+    return;
+  }
+  const ws = XLSX.utils.json_to_sheet(resultados);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Resultados');
+  XLSX.writeFile(wb, 'Cruce_Socios_Resultados.xlsx');
+}
+</script>
+</body>
+</html>
