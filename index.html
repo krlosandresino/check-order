@@ -3,167 +3,285 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Panel de Herramientas Logísticas</title>
+    <title>Check Order</title>
+    <script src="https://cdn.sheetjs.com/xlsx-0.19.3/package/dist/xlsx.full.min.js"></script>
     <style>
-        :root {
-            --primary: #2563eb;
-            --secondary: #64748b;
-            --dark: #0f172a;
-            --bg: #f8fafc;
-        }
-
-        body {
-            font-family: 'Segoe UI', system-ui, sans-serif;
-            background-color: var(--bg);
-            color: var(--dark);
-            margin: 0;
-            padding: 40px 20px;
-        }
-
-        .container {
-            max-width: 900px;
-            margin: auto;
-        }
-
-        header {
-            text-align: center;
-            margin-bottom: 40px;
-        }
-
-        h1 { font-size: 2.5rem; margin-bottom: 10px; color: var(--dark); }
-        p { color: var(--secondary); font-size: 1.1rem; }
-
-        .grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            gap: 20px;
-        }
-
-        .card {
-            background: white;
-            padding: 30px;
-            border-radius: 12px;
-            text-decoration: none;
-            color: inherit;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            text-align: center;
-            border: 1px solid #e2e8f0;
-            transition: all 0.3s ease;
-            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
-        }
-
-        .card:hover {
-            transform: translateY(-5px);
-            border-color: var(--primary);
-            box-shadow: 0 10px 15px -3px rgba(37, 99, 235, 0.1);
-        }
-
-        .icon {
-            font-size: 2.5rem;
-            margin-bottom: 15px;
-        }
-
-        .card span {
-            font-weight: 600;
-            font-size: 1.1rem;
-            color: var(--primary);
-        }
-
-        footer {
-            margin-top: 60px;
-            text-align: center;
-            font-size: 0.9rem;
-            color: var(--secondary);
-        }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 1000px; margin: 0 auto; padding: 20px; background-color: #f0f2f5; }
+        h1 { text-align: center; color: #333; }
+        .form-group { background: white; padding: 25px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 20px;}
+        details { background: #e9ecef; border-radius: 10px; margin-bottom: 20px; border: 1px solid #adb5bd; overflow: hidden; }
+        summary { padding: 15px; cursor: pointer; font-weight: bold; background: #dee2e6; list-style: none; }
+        summary:hover { background: #ced4da; }
+        .admin-content { padding: 20px; text-align: center; border-top: 1px solid #ccc; }
+        input { padding: 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 16px; }
+        #nombreInput { flex: 2; min-width: 200px; background-color: #f8f9fa; text-transform: uppercase; }
+        #codigoInput { flex: 1; min-width: 120px; }
+        #cantidadInput { flex: 1; min-width: 100px; }
+        button { padding: 12px 25px; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; color: white; transition: 0.2s; }
+        button:hover { opacity: 0.9; }
+        .btn-guardar { background-color: #28a745; }
+        .btn-borrar { background-color: #dc3545; padding: 6px 12px; font-size: 12px; }
+        .btn-admin { background-color: #6c757d; margin-top: 10px;}
+        .btn-descargar { background-color: #007bff; margin-top: 10px; width: 100%; font-size: 16px; }
+        /* NUEVO ESTILO BOTÓN LIMPIAR TODO */
+        .btn-borrar-todo { background-color: #f39c12; margin-top: 10px; width: 100%; font-size: 16px; }
+        .btn-borrar-todo:hover { background-color: #e67e22; }
+        
+        table { width: 100%; border-collapse: collapse; background: white; border-radius: 10px; overflow: hidden; }
+        th, td { padding: 15px; text-align: left; border-bottom: 1px solid #eee; }
+        th { background-color: #007bff; color: white; }
+        .ubicacion-tag { background: #fff3cd; color: #856404; padding: 4px 8px; border-radius: 4px; font-weight: bold; font-size: 13px; }
+        #statusDb { font-size: 14px; margin-left: 10px; color: #666; }
     </style>
 </head>
 <body>
 
-<div class="container">
-    <header>
-        <h1>Mi Panel de Control</h1>
-        <p>Acceso rápido a herramientas de gestión y logística</p>
-    </header>
+    <h1>📦 Solicitud de código</h1>
 
-    <div class="grid">
-        <a href="ARMADOS.html" class="card">
-            <div class="icon">🏗️</div>
-            <span>ARMADOS</span>
-        </a>
+    <details>
+        <summary>⚙️ Panel de Actualización de Ubicaciones</summary>
+        <div class="admin-content">
+            <h3>Cargar Base de Datos de Ubicaciones</h3>
+            <input type="file" id="excelInput" accept=".xlsx, .xls">
+            <button class="btn-admin" onclick="procesarYSubirExcel()">☁️ Subir y Reemplazar Todo</button>
+            <div id="progresoCarga" style="margin-top: 10px; font-weight: bold; color: #007bff;"></div>
+        </div>
+    </details>
 
-        <a href="BALANCEO.html" class="card">
-            <div class="icon">⚖️</div>
-            <span>BALANCEO</span>
-        </a>
-
-        <a href="buscador de contactos.html" class="card">
-            <div class="icon">🔍</div>
-            <span>Buscador de contactos</span>
-        </a>
-
-        <a href="SCG.HTML" class="card">
-            <div class="icon">🏢</div>
-            <span>Centro de Servicio (SCG)</span>
-        </a>
-
-        <a href="Contador factura y carton.html" class="card">
-            <div class="icon">🔢</div>
-            <span>Contador factura y carton</span>
-        </a>
-
-        <a href="guias manuales.html" class="card">
-            <div class="icon">🗺️</div>
-            <span>Guías manuales</span>
-        </a>
-
-        <a href="Transporte.html" class="card">
-            <div class="icon">🚛</div>
-            <span>Guías de Transporte</span>
-        </a>
-
-        <a href="IMPRESION.html" class="card">
-            <div class="icon">🖨️</div>
-            <span>IMPRESION</span>
-        </a>
-
-        <a href="GALAPAGOS.html" class="card">
-            <div class="icon">🐢</div>
-            <span>Pedidos Galápagos</span>
-        </a>
-
-        <a href="pedir productos.html" class="card">
-            <div class="icon">📦</div>
-            <span>Pedir Productos</span>
-        </a>
-
-        <a href="Registrar ubicaciones.html" class="card">
-            <div class="icon">📍</div>
-            <span>Registrar ubicaciones</span>
-        </a>
-
-        <a href="registro_de_ingreso_y_salida_html.html" class="card">
-            <div class="icon">🕒</div>
-            <span>Registro Ingreso/Salida</span>
-        </a>
-
-        <a href="Unidades pickeadas.html" class="card">
-            <div class="icon">📊</div>
-            <span>Reporte Unidades</span>
-        </a>
-
-        <a href="Voucher.html" class="card">
-            <div class="icon">🎟️</div>
-            <span>Solicitud de Voucher</span>
-        </a>
+    <div class="form-group">
+        <div style="width: 100%; margin-bottom: 10px;">
+            <span id="statusDb">⏳ Cargando ubicaciones...</span>
+        </div>
+        <input type="text" id="nombreInput" placeholder="Nombre del Check">
+        <input type="number" id="codigoInput" placeholder="Código">
+        <input type="number" id="cantidadInput" placeholder="Cantidad">
+        <button class="btn-guardar" onclick="guardarDatos()">+ Agregar</button>
+        <button class="btn-descargar" onclick="descargarYLimpiarHistorial()">📥 Descargar reporte y Limpiar registro</button>
+        <button class="btn-borrar-todo" onclick="limpiarTodoVista()">🗑️ Limpiar Historial</button>
     </div>
 
-    <footer>
-        &copy; 2024 Mi Panel de Control Logístico
-    </footer>
-</div>
+    <table>
+        <thead>
+            <tr>
+                <th>Nombre</th>
+                <th>Código</th>
+                <th>Ubicación</th>
+                <th>Cant.</th>
+                <th>Fecha/Hora</th>
+                <th>Acción</th>
+            </tr>
+        </thead>
+        <tbody id="tablaCuerpo"></tbody>
+    </table>
 
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js";
+        import { getFirestore, collection, addDoc, onSnapshot, orderBy, query, serverTimestamp, deleteDoc, doc, writeBatch, getDocs, limit } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyCzZFPcSUPwWYIe4w3IW7pDluIchGMqWoU",
+            authDomain: "inventario-web-57600.firebaseapp.com",
+            projectId: "inventario-web-57600",
+            storageBucket: "inventario-web-57600.firebasestorage.app",
+            messagingSenderId: "918058389127",
+            appId: "1:918058389127:web:5d86be464e3d80d992b222"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        
+        const colRegistros = collection(db, "registros");
+        const colUbicaciones = collection(db, "ubicaciones_diarias");
+        const colHistorial = collection(db, "historial_total");
+
+        let mapaUbicaciones = {};
+
+        const nombreInput = document.getElementById('nombreInput');
+        if (sessionStorage.getItem('tempNombre')) {
+            nombreInput.value = sessionStorage.getItem('tempNombre');
+        }
+        nombreInput.addEventListener('input', (e) => {
+            sessionStorage.setItem('tempNombre', e.target.value);
+        });
+
+        async function cargarUbicacionesDesdeNube() {
+            const status = document.getElementById('statusDb');
+            try {
+                const querySnapshot = await getDocs(colUbicaciones);
+                mapaUbicaciones = {};
+                querySnapshot.forEach((doc) => { mapaUbicaciones[doc.id] = doc.data().ubicacion; });
+                status.innerHTML = `✅ ${Object.keys(mapaUbicaciones).length} ubicaciones activas.`;
+                status.style.color = "green";
+            } catch (error) { status.innerHTML = "❌ Error de conexión."; }
+        }
+        cargarUbicacionesDesdeNube();
+
+        window.guardarDatos = async () => {
+            const codigoInput = document.getElementById('codigoInput');
+            const cantidadInput = document.getElementById('cantidadInput');
+            const nombre = nombreInput.value.trim().toUpperCase();
+            const codigo = codigoInput.value.trim();
+            const cantidad = cantidadInput.value;
+            const ubicacion = mapaUbicaciones[codigo] || "No definida";
+
+            if (!nombre || !codigo || !cantidad) return alert("Llena todos los campos.");
+
+            try {
+                const data = { nombre, codigo, cantidad, ubicacion, timestamp: serverTimestamp() };
+                await addDoc(colRegistros, data);
+                await addDoc(colHistorial, data);
+                codigoInput.value = '';
+                cantidadInput.value = '';
+                codigoInput.focus(); 
+            } catch (e) { alert("Error: " + e.message); }
+        }
+
+        // NUEVA FUNCIÓN PARA LIMPIAR TODO EL REGISTRO VISIBLE
+        window.limpiarTodoVista = async () => {
+            if(!confirm("¿Desea borrar TODOS los registros de la lista actual?")) return;
+            
+            const btn = document.querySelector('.btn-borrar-todo');
+            try {
+                btn.innerText = "⏳ Borrando...";
+                btn.disabled = true;
+
+                const querySnapshot = await getDocs(colRegistros);
+                if (querySnapshot.empty) return alert("No hay registros para borrar.");
+
+                let batch = writeBatch(db);
+                let count = 0;
+                for (const docSnap of querySnapshot.docs) {
+                    batch.delete(docSnap.ref);
+                    count++;
+                    if (count === 450) {
+                        await batch.commit();
+                        batch = writeBatch(db);
+                        count = 0;
+                    }
+                }
+                if (count > 0) await batch.commit();
+                
+                alert("Registros eliminados de la lista.");
+            } catch (error) { alert("Error: " + error.message); }
+            finally { 
+                btn.innerText = "🗑️ Limpiar Todo (Solo Vista)"; 
+                btn.disabled = false; 
+            }
+        };
+
+        window.descargarYLimpiarHistorial = async () => {
+            if(!confirm("Esto descargará el Excel y borrará el historial de la nube para un nuevo reporte. ¿Continuar?")) return;
+            
+            const btn = document.querySelector('.btn-descargar');
+            try {
+                btn.innerText = "⏳ Procesando...";
+                btn.disabled = true;
+
+                const querySnapshot = await getDocs(query(colHistorial, orderBy("timestamp", "asc")));
+                if (querySnapshot.empty) return alert("No hay datos para descargar.");
+
+                const datosParaExcel = [];
+                querySnapshot.forEach((docSnap) => {
+                    const d = docSnap.data();
+                    datosParaExcel.push({
+                        "Nombre": d.nombre,
+                        "Codigo": d.codigo,
+                        "Ubicacion": d.ubicacion,
+                        "Cantidad": d.cantidad,
+                        "Fecha/Hora": d.timestamp ? d.timestamp.toDate().toLocaleString() : ""
+                    });
+                });
+
+                const ws = XLSX.utils.json_to_sheet(datosParaExcel);
+                const wb = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(wb, ws, "Reporte");
+                XLSX.writeFile(wb, `Reporte_Final_${new Date().getTime()}.xlsx`);
+
+                let batch = writeBatch(db);
+                let count = 0;
+                for (const docSnap of querySnapshot.docs) {
+                    batch.delete(docSnap.ref);
+                    count++;
+                    if (count === 450) {
+                        await batch.commit();
+                        batch = writeBatch(db);
+                        count = 0;
+                    }
+                }
+                if (count > 0) await batch.commit();
+                
+                alert("Excel descargado e historial limpiado.");
+            } catch (error) { alert("Error: " + error.message); }
+            finally { 
+                btn.innerText = "📥 Descargar reporte y Limpiar registro"; 
+                btn.disabled = false; 
+            }
+        };
+
+        window.borrarDato = async (id) => {
+            if(confirm("¿Desea entregar?")) await deleteDoc(doc(db, "registros", id));
+        }
+
+        onSnapshot(query(colRegistros, orderBy("timestamp", "desc")), (snapshot) => {
+            const tabla = document.getElementById('tablaCuerpo');
+            tabla.innerHTML = "";
+            snapshot.docs.forEach(docSnap => {
+                const data = docSnap.data();
+                const fecha = data.timestamp ? data.timestamp.toDate().toLocaleString() : "...";
+                tabla.innerHTML += `<tr><td>${data.nombre}</td><td><strong>${data.codigo}</strong></td><td><span class="ubicacion-tag">${data.ubicacion}</span></td><td><span class="ubicacion-tag">${data.cantidad}</span></td><td style="font-size: 11px;">${fecha}</td><td><button class="btn-borrar" onclick="borrarDato('${docSnap.id}')">Entregar</button></td></tr>`;
+            });
+        });
+
+        window.procesarYSubirExcel = async () => {
+            const fileInput = document.getElementById('excelInput');
+            const progreso = document.getElementById('progresoCarga');
+            if (!fileInput.files[0]) return alert("Selecciona un archivo.");
+
+            try {
+                progreso.innerText = "⏳ Leyendo archivo...";
+                const data = await fileInput.files[0].arrayBuffer();
+                const workbook = XLSX.read(data);
+                const jsonData = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
+
+                if (jsonData.length === 0) return alert("Excel vacío.");
+
+                progreso.innerText = "⏳ Limpiando base de datos...";
+                
+                while (true) {
+                    const snap = await getDocs(query(colUbicaciones, limit(450)));
+                    if (snap.empty) break;
+                    const batchDel = writeBatch(db);
+                    snap.docs.forEach(d => batchDel.delete(d.ref));
+                    await batchDel.commit();
+                }
+
+                progreso.innerText = `🚀 Subiendo nuevas ubicaciones...`;
+                
+                for (let i = 0; i < jsonData.length; i += 400) {
+                    const batchSubida = writeBatch(db);
+                    const chunk = jsonData.slice(i, i + 400);
+                    
+                    chunk.forEach(fila => {
+                        const codigo = String(fila.codigo || fila.Codigo || "").trim();
+                        const ubicacion = String(fila.ubicacion || fila.Ubicacion || "").trim();
+                        if (codigo) {
+                            const docRef = doc(colUbicaciones, codigo);
+                            batchSubida.set(docRef, { ubicacion: ubicacion });
+                        }
+                    });
+                    await batchSubida.commit();
+                }
+
+                progreso.innerText = "✅ ¡Todo listo!";
+                cargarUbicacionesDesdeNube();
+            } catch (error) {
+                progreso.innerText = "❌ Error: " + error.message;
+            }
+        };
+
+        nombreInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') document.getElementById('codigoInput').focus(); });
+        document.getElementById('codigoInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') document.getElementById('cantidadInput').focus(); });
+        document.getElementById('cantidadInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') window.guardarDatos(); });
+    </script>
 </body>
 </html>
