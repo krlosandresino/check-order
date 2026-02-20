@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Impresión Zebra</title>
+    <style>
+        /* Estilos visuales para el panel de control */
+        body { font-family: 'Segoe UI', sans-serif; padding: 20px; background-color: #eef2f3; color: #333; }
+        .container { max-width: 450px; margin: auto; background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+        
+        label { font-weight: bold; display: block; margin-bottom: 8px; }
+        textarea { width: 100%; height: 100px; padding: 12px; border: 2px solid #ddd; border-radius: 8px; box-sizing: border-box; font-size: 16px; margin-bottom: 20px; }
+        
+        /* Controles de tamaño */
+        .font-controls { margin-bottom: 20px; background: #f8f9fa; padding: 15px; border-radius: 8px; }
+        input[type=range] { width: 100%; cursor: pointer; }
+        
+        button { width: 100%; padding: 15px; background-color: #0056b3; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 18px; font-weight: bold; transition: 0.3s; margin-bottom: 20px; }
+        button:hover { background-color: #004494; }
+
+        /* --- NUEVO: ESTILO VISTA PREVIA --- */
+        .preview-container {
+            margin-top: 10px;
+            border: 2px dashed #ccc;
+            padding: 10px;
+            min-height: 100px;
+            background: #fff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            overflow: hidden;
+        }
+        .preview-label { font-weight: bold; line-height: 1.1; word-wrap: break-word; width: 100%; }
+
+        /* --- CONFIGURACIÓN DE IMPRESIÓN --- */
+        #printableArea {
+            display: none; /* Oculto en pantalla normal */
+            text-align: center;
+            font-weight: bold;
+            line-height: 1.1;
+            word-wrap: break-word;
+        }
+
+        @media print {
+            body * { visibility: hidden; }
+            #printableArea { 
+                visibility: visible; 
+                display: flex !important; 
+                position: absolute; 
+                left: 0; top: 0; 
+                width: 100%; height: 100%;
+                align-items: center; 
+                justify-content: center;
+            }
+            @page { margin: 0; size: auto; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2 style="margin-top:0">Impresora Zebra Label</h2>
+    
+    <label for="userInput">Texto de la etiqueta:</label>
+    <textarea id="userInput" placeholder="Escribe el contenido aquí..." oninput="actualizarVista()"></textarea>
+    
+    <div class="font-controls">
+        <label>Tamaño de Fuente: <span id="fontSizeDisplay">40</span>px</label>
+        <input type="range" id="fontSlider" min="10" max="150" value="40" oninput="actualizarVista()">
+    </div>
+    
+    <button onclick="window.print()">IMPRIMIR AHORA</button>
+
+    <label>Vista previa:</label>
+    <div class="preview-container">
+        <div id="livePreview" class="preview-label"></div>
+    </div>
+</div>
+
+<div id="printableArea"></div>
+
+<script>
+    function actualizarVista() {
+        const texto = document.getElementById('userInput').value;
+        const tamaño = document.getElementById('fontSlider').value;
+        const areaImpresion = document.getElementById('printableArea');
+        const vistaPrevia = document.getElementById('livePreview');
+        const displayLabel = document.getElementById('fontSizeDisplay');
+
+        // Actualizar el número visual
+        displayLabel.innerText = tamaño;
+        
+        // Preparar el área de impresión (la que sale en el papel)
+        areaImpresion.innerText = texto;
+        areaImpresion.style.fontSize = tamaño + "px";
+
+        // Actualizar la vista previa en vivo (la que ves en pantalla)
+        vistaPrevia.innerText = texto;
+        vistaPrevia.style.fontSize = tamaño + "px";
+    }
+
+    // Inicializar al cargar
+    actualizarVista();
+</script>
+
+</body>
+</html>

@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Reporte Unidades Pickeadas</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; margin: 20px; background-color: #f4f6f9; }
+        .container { max-width: 1000px; margin: auto; background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+        textarea { width: 100%; height: 80px; border: 2px solid #cbd5e0; border-radius: 8px; padding: 10px; margin-bottom: 10px; font-size: 13px; outline: none; }
+        .btn-group { display: flex; gap: 10px; margin-bottom: 20px; }
+        button { flex: 1; padding: 12px; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 14px; transition: 0.3s; }
+        .btn-process { background: #2c3e50; color: white; }
+        .btn-copy { background: #e67e22; color: white; display: none; }
+        button:hover { opacity: 0.9; }
+        
+        #captureArea { background: white; padding: 20px; border-radius: 8px; }
+        .charts-container { display: flex; flex-direction: column; gap: 20px; }
+        .chart-box { height: 300px; position: relative; }
+        
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; background: white; }
+        th { background: #2c3e50; color: white; padding: 10px; font-size: 13px; }
+        td { border: 1px solid #edf2f7; padding: 8px; text-align: center; font-size: 12px; }
+        tr:nth-child(even) { background: #f8f9fa; }
+        .hidden { display: none; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>📊 Reporte Unidades Pickeadas</h2>
+    <textarea id="excelInput" placeholder="Pega aquí tus datos de Excel..."></textarea>
+    
+    <div class="btn-group">
+        <button class="btn-process" onclick="procesarAgrupado()">⚙️ Procesar Datos</button>
+        <button id="btnCopy" class="btn-copy" onclick="copiarComoImagen()">📋 Copiar Gráficos como Imagen</button>
+    </div>
+
+    <div id="resultado" class="hidden">
+        <div id="captureArea">
+            <h3 id="tituloImagen" style="text-align: center; margin-bottom: 20px; display: none; color: #2c3e50;">Resumen de Operación</h3>
+            <div class="charts-container">
+                <div class="chart-box"><canvas id="canvasOrdenes"></canvas></div>
+                <div class="chart-box"><canvas id="canvasOperadores"></canvas></div>
+            </div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Fecha</th>
+                        <th>Órdenes</th>
+                        <th>Unidades</th>
+                        <th>Prom. Ops</th>
+                    </tr>
+                </thead>
+                <tbody id="tablaCuerpo"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+    let chart1, chart2;
+
+    function procesarAgrupado() {
+        const input = document.getElementById('excelInput').value.trim();
+        if (!input) return;
+
+        let filas = input.split('\n');
+        if (filas.length > 1) filas.shift(); 
+
+        const consolidado = {};
+        filas.forEach(fila => {
+            const c = fila.split('\t');
+            if (c.length >= 10) {
+                const fecha = c[2].trim();
+                const ord = parseInt(c[5]) || 0;
+                const uni = parseInt(c[8]) || 0;
+                const ops = parseInt(c[9]) || 0;
+
+                if (!consolidado[fecha]) consolidado[fecha] = { ordenes: 0, unidades: 0, opsSuma: 0, conteo: 0 };
+                consolidado[fecha].ordenes += ord;
+                consolidado[fecha].unidades += uni;
+                consolidado[fecha].opsSuma += ops;
+                consolidado[fecha].conteo += 1;
+            }
+        });
+
+        const fechas = Object.keys(consolidado);
+        const dOrdenes = [], dUnidades = [], dOpsPromedio = [];
+        let html = '';
+
+        fechas.forEach(f => {
+            const data = consolidado[f];
+            const promedioOps = (data.opsSuma / data.conteo).toFixed(1);
+            dOrdenes.push(data.ordenes);
+            dUnidades.push(data.unidades);
+            dOpsPromedio.push(promedioOps);
+            html += `<tr><td>${f}</td><td>${data.ordenes.toLocaleString()}</td><td>${data.unidades.toLocaleString()}</td><td>${promedioOps}</td></tr>`;
+        });
+
+        document.getElementById('tablaCuerpo').innerHTML = html;
+        document.getElementById('resultado').classList.remove('hidden');
+        document.getElementById('btnCopy').style.display = 'block';
+
+        actualizarGraficos(fechas, dOrdenes, dUnidades, dOpsPromedio);
+    }
+
+    function actualizarGraficos(labels, ordenes, unidades, ops) {
+        if (chart1) chart1.destroy();
+        if (chart2) chart2.destroy();
+
+        const options = { responsive: true, maintainAspectRatio: false, animation: false };
+
+        chart1 = new Chart(document.getElementById('canvasOrdenes'), {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [
+                    { label: 'Órdenes', data: ordenes, borderColor: '#3498db', tension: 0.3 },
+                    { label: 'Unidades', data: unidades, borderColor: '#e67e22', tension: 0.3 }
+                ]
+            },
+            options: options
+        });
+
+        chart2 = new Chart(document.getElementById('canvasOperadores'), {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [{ label: 'Promedio Operadores', data: ops, borderColor: '#27ae60', backgroundColor: 'rgba(39, 174, 96, 0.1)', fill: true }]
+            },
+            options: options
+        });
+    }
+
+    async function copiarComoImagen() {
+        const area = document.getElementById('captureArea');
+        const titulo = document.getElementById('tituloImagen');
+        const btn = document.getElementById('btnCopy');
+        
+        btn.innerText = "⌛ Generando...";
+        titulo.style.display = 'block'; // Mostrar título solo para la foto
+
+        // Convertir HTML a Canvas
+        const canvas = await html2canvas(area, { scale: 2 });
+        
+        canvas.toBlob(async (blob) => {
+            try {
+                const item = new ClipboardItem({ "image/png": blob });
+                await navigator.clipboard.write([item]);
+                btn.innerText = "✅ ¡Copiado!";
+                setTimeout(() => btn.innerText = "📋 Copiar Gráficos como Imagen", 2000);
+            } catch (err) {
+                console.error(err);
+                alert("Error al copiar. Intenta usar un navegador moderno como Chrome o Edge.");
+            }
+            titulo.style.display = 'none';
+        });
+    }
+</script>
+
+</body>
+</html>

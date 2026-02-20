@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Solicitud de voucher</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <style>
+        :root {
+            --primary-color: #0056b3;
+            --secondary-color: #27ae60;
+            --accent-color: #8e44ad;
+            --bg-color: #f8f9fa;
+            --text-color: #333;
+            --header-bg: #e3f2fd;
+        }
+
+        body { 
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; 
+            background-color: var(--bg-color); 
+            color: var(--text-color);
+            margin: 0;
+            padding: 20px;
+        }
+
+        .container { 
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white; 
+            padding: 30px; 
+            border-radius: 15px; 
+            box-shadow: 0 10px 25px rgba(0,0,0,0.05); 
+        }
+
+        h2 { 
+            text-align: center; 
+            color: var(--primary-color); 
+            font-weight: 600;
+            margin-bottom: 25px;
+        }
+
+        .btn-group { display: flex; gap: 10px; margin-bottom: 20px; }
+
+        .btn { 
+            padding: 12px 24px; border: none; border-radius: 8px; cursor: pointer; 
+            font-weight: bold; font-size: 14px; transition: all 0.3s ease;
+            display: inline-flex; align-items: center; gap: 8px; color: white;
+        }
+
+        .btn-add { background-color: var(--secondary-color); }
+        .btn-image { background-color: var(--accent-color); }
+        .btn:hover { transform: translateY(-1px); opacity: 0.9; }
+
+        #captura-area { background: white; padding: 10px; border-radius: 8px; }
+
+        table { 
+            width: 100%; border-collapse: separate; border-spacing: 0;
+            table-layout: fixed; border: 1px solid #e0e0e0; border-radius: 8px; overflow: hidden;
+        }
+
+        th { 
+            background-color: var(--header-bg); color: #0d47a1; 
+            padding: 15px 10px; font-size: 12px; text-transform: uppercase;
+            border-bottom: 2px solid #bbdefb; text-align: left;
+        }
+
+        td { padding: 10px; border-bottom: 1px solid #f0f0f0; vertical-align: top; }
+
+        th:nth-child(1) { width: 15%; } th:nth-child(2) { width: 8%; }
+        th:nth-child(3) { width: 10%; } th:nth-child(4) { width: 10%; }
+        th:nth-child(5) { width: 12%; } th:nth-child(6) { width: 45%; }
+
+        input, select, textarea { 
+            width: 100%; padding: 10px; border: 1px solid #e0e0e0; border-radius: 6px; 
+            font-size: 13px; outline: none; background-color: #fafafa; font-family: inherit;
+        }
+
+        textarea { resize: none; overflow: hidden; min-height: 45px; line-height: 1.4; }
+        
+        .destino-container { display: flex; flex-direction: column; gap: 8px; }
+        
+        select { background-color: #fffde7; border: 1px solid #fff59d; font-weight: 500; }
+
+        /* ESTA PARTE OCULTA LOS SELECTS EN LA FOTO SIN MOVER LA TABLA */
+        .capturando select { visibility: hidden; }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h2>Solicitud de voucher</h2>
+        
+        <div class="btn-group">
+            <button class="btn btn-add" onclick="agregarFila()">➕ AGREGAR FILA</button>
+            <button class="btn btn-image" onclick="copiarImagen()">📸 COPIAR GRÁFICO</button>
+        </div>
+        
+        <div id="captura-area">
+            <table id="tablaLogistica">
+                <thead>
+                    <tr>
+                        <th>RESPONSABLE</th>
+                        <th>UNIDAD</th>
+                        <th>VOUCHER</th>
+                        <th>HORA</th>
+                        <th>LUGAR (ORIGEN)</th>
+                        <th>DESTINO</th>
+                    </tr>
+                </thead>
+                <tbody>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        const opcionesDestino = {
+            "ANTONIO": "MALVINAS",
+            "BRYAN": "LOS ROSALES",
+            "CARLOS": "CRISTO CONSUELO",
+            "FREDDY": "VILLA ITALIA",
+            "HUGO": "10 AGOSTO",
+            "JOEL": "MALL DEL FORTIN",
+            "LUISA": "FLORIDA",
+            "MARIA": "J. MONTALVO",
+            "MERCEDES": "FLORIDA",
+            "MIGUEL": "MAPASINGUE",
+            "YURI": "BATALLON"
+        };
+
+        function agregarFila() {
+            const table = document.getElementById("tablaLogistica").getElementsByTagName('tbody')[0];
+            const newRow = table.insertRow();
+
+            newRow.insertCell(0).innerHTML = '<input type="text" placeholder="Nombre...">';
+            newRow.insertCell(1).innerHTML = '<input type="text" value="1" style="text-align: center;">';
+            newRow.insertCell(2).innerHTML = '<input type="text" value="FISICO">';
+            
+            const ahora = new Date();
+            const horaActual = ahora.getHours().toString().padStart(2, '0') + ':' + ahora.getMinutes().toString().padStart(2, '0');
+            newRow.insertCell(3).innerHTML = `<input type="time" value="${horaActual}">`;
+            
+            newRow.insertCell(4).innerHTML = '<input type="text" value="RANSA">';
+            
+            const cell6 = newRow.insertCell(5);
+            
+            // Los nombres se extraen y se ordenan de A-Z
+            const nombresOrdenados = Object.keys(opcionesDestino).sort();
+
+            cell6.innerHTML = `
+                <div class="destino-container">
+                    <textarea class="destino-input" placeholder="Destinos..." oninput="ajustarAltura(this)"></textarea>
+                    <select onchange="acumularDestinos(this)">
+                        <option value="">+ Añadir destino...</option>
+                        ${nombresOrdenados.map(n => `<option value="${n} (${opcionesDestino[n]})">${n}</option>`).join('')}
+                    </select>
+                </div>`;
+        }
+
+        function acumularDestinos(selectElement) {
+            const textarea = selectElement.parentElement.querySelector('.destino-input');
+            if (selectElement.value !== "") {
+                textarea.value += (textarea.value ? ", " : "") + selectElement.value;
+                selectElement.selectedIndex = 0;
+                ajustarAltura(textarea);
+            }
+        }
+
+        function ajustarAltura(el) {
+            el.style.height = "auto";
+            el.style.height = el.scrollHeight + "px";
+        }
+
+        function copiarImagen() {
+            const area = document.getElementById('captura-area');
+            
+            area.classList.add('capturando');
+
+            html2canvas(area, {
+                backgroundColor: "#ffffff",
+                scale: 2,
+                useCORS: true,
+                onclone: (clonedDoc) => {
+                    const inputs = clonedDoc.querySelectorAll('input, textarea');
+                    inputs.forEach(input => {
+                        const span = clonedDoc.createElement('span');
+                        span.innerText = input.value;
+                        span.style.display = 'block';
+                        span.style.whiteSpace = 'pre-wrap';
+                        span.style.width = '100%';
+                        span.style.fontSize = '13px';
+                        input.parentNode.replaceChild(span, input);
+                    });
+                }
+            }).then(canvas => {
+                canvas.toBlob(blob => {
+                    const item = new ClipboardItem({ "image/png": blob });
+                    navigator.clipboard.write([item]).then(() => {
+                        alert("¡Gráfico copiado!");
+                        area.classList.remove('capturando');
+                    });
+                });
+            });
+        }
+
+        window.onload = agregarFila;
+    </script>
+</body>
+</html>
