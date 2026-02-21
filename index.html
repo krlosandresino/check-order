@@ -23,7 +23,6 @@
         .btn-borrar { background-color: #dc3545; padding: 6px 12px; font-size: 12px; }
         .btn-admin { background-color: #6c757d; margin-top: 10px;}
         .btn-descargar { background-color: #007bff; margin-top: 10px; width: 100%; font-size: 16px; }
-        /* NUEVO ESTILO BOTÓN LIMPIAR TODO */
         .btn-borrar-todo { background-color: #f39c12; margin-top: 10px; width: 100%; font-size: 16px; }
         .btn-borrar-todo:hover { background-color: #e67e22; }
         
@@ -50,7 +49,7 @@
 
     <div class="form-group">
         <div style="width: 100%; margin-bottom: 10px;">
-            <span id="statusDb">⏳ Cargando ubicaciones...</span>
+            <span id="statusDb">⏳ Sincronizando ubicaciones...</span>
         </div>
         <input type="text" id="nombreInput" placeholder="Nombre del Check">
         <input type="number" id="codigoInput" placeholder="Código">
@@ -104,17 +103,22 @@
             sessionStorage.setItem('tempNombre', e.target.value);
         });
 
-        async function cargarUbicacionesDesdeNube() {
+        // FUNCION ACTUALIZADA: Ahora escucha cambios en tiempo real
+        function escucharUbicacionesEnTiempoReal() {
             const status = document.getElementById('statusDb');
-            try {
-                const querySnapshot = await getDocs(colUbicaciones);
+            onSnapshot(colUbicaciones, (querySnapshot) => {
                 mapaUbicaciones = {};
-                querySnapshot.forEach((doc) => { mapaUbicaciones[doc.id] = doc.data().ubicacion; });
-                status.innerHTML = `✅ ${Object.keys(mapaUbicaciones).length} ubicaciones activas.`;
+                querySnapshot.forEach((doc) => { 
+                    mapaUbicaciones[doc.id] = doc.data().ubicacion; 
+                });
+                status.innerHTML = `✅ ${Object.keys(mapaUbicaciones).length} ubicaciones sincronizadas.`;
                 status.style.color = "green";
-            } catch (error) { status.innerHTML = "❌ Error de conexión."; }
+            }, (error) => {
+                status.innerHTML = "❌ Error de conexión.";
+                status.style.color = "red";
+            });
         }
-        cargarUbicacionesDesdeNube();
+        escucharUbicacionesEnTiempoReal();
 
         window.guardarDatos = async () => {
             const codigoInput = document.getElementById('codigoInput');
@@ -136,7 +140,6 @@
             } catch (e) { alert("Error: " + e.message); }
         }
 
-        // NUEVA FUNCIÓN PARA LIMPIAR TODO EL REGISTRO VISIBLE
         window.limpiarTodoVista = async () => {
             if(!confirm("¿Desea borrar TODOS los registros de la lista actual?")) return;
             
@@ -164,7 +167,7 @@
                 alert("Registros eliminados de la lista.");
             } catch (error) { alert("Error: " + error.message); }
             finally { 
-                btn.innerText = "🗑️ Limpiar Todo (Solo Vista)"; 
+                btn.innerText = "🗑️ Limpiar Historial"; 
                 btn.disabled = false; 
             }
         };
@@ -273,7 +276,7 @@
                 }
 
                 progreso.innerText = "✅ ¡Todo listo!";
-                cargarUbicacionesDesdeNube();
+                // Opcional: location.reload(); // Solo si quieres forzar recarga en la PC que sube.
             } catch (error) {
                 progreso.innerText = "❌ Error: " + error.message;
             }
