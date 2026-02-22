@@ -103,7 +103,6 @@
             sessionStorage.setItem('tempNombre', e.target.value);
         });
 
-        // FUNCION ACTUALIZADA: Ahora escucha cambios en tiempo real
         function escucharUbicacionesEnTiempoReal() {
             const status = document.getElementById('statusDb');
             onSnapshot(colUbicaciones, (querySnapshot) => {
@@ -276,7 +275,6 @@
                 }
 
                 progreso.innerText = "✅ ¡Todo listo!";
-                // Opcional: location.reload(); // Solo si quieres forzar recarga en la PC que sube.
             } catch (error) {
                 progreso.innerText = "❌ Error: " + error.message;
             }
@@ -285,6 +283,15 @@
         nombreInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') document.getElementById('codigoInput').focus(); });
         document.getElementById('codigoInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') document.getElementById('cantidadInput').focus(); });
         document.getElementById('cantidadInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') window.guardarDatos(); });
+
+        // --- BLOQUE DE SEGURIDAD AÑADIDO ---
+        document.addEventListener('contextmenu', e => e.preventDefault());
+        document.addEventListener('keydown', e => {
+            if (e.key === "F12" || (e.ctrlKey && (e.key === "u" || e.key === "s" || e.shiftKey && (e.key === "I" || e.key === "J")))) {
+                e.preventDefault();
+                return false;
+            }
+        });
     </script>
 </body>
 </html>
