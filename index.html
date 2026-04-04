@@ -26,6 +26,9 @@
         .btn-descargar { background-color: #007bff; margin-top: 10px; width: 100%; font-size: 16px; }
         .btn-borrar-todo { background-color: #f39c12; margin-top: 10px; width: 100%; font-size: 16px; }
         
+        /* BOTÓN DE ENLACE AÑADIDO */
+        .btn-enlace { background-color: #17a2b8; margin-top: 10px; width: 100%; font-size: 16px; text-decoration: none; display: inline-block; text-align: center; box-sizing: border-box; }
+
         /* ESTILO SECCIÓN DE AVISOS (DEBAJO DE BOTONES) */
         .seccion-avisos { width: 100%; background: #fdfdfd; padding: 15px; border-radius: 10px; border: 1px solid #ddd; border-left: 5px solid #007bff; position: relative; margin-top: 10px; box-sizing: border-box; }
         .input-aviso { display: flex; gap: 10px; margin-top: 10px; }
@@ -65,6 +68,8 @@
         <button class="btn-guardar" onclick="guardarDatos()">+ Agregar</button>
         <button class="btn-descargar" onclick="descargarYLimpiarHistorial()">📥 Descargar reporte y liberar memoria</button>
         <button class="btn-borrar-todo" onclick="limpiarTodoVista()">🗑️ Limpiar Vista</button>
+        
+        <a href="https://krlosandresino.github.io/buscador-productos/" target="_blank" class="btn-enlace" style="color: white; padding: 12px 25px; border-radius: 6px; font-weight: bold;">🔍 Ir al Buscador de Productos</a>
 
         <div class="seccion-avisos">
             <button class="btn-limpiar-avisos" onclick="borrarTodosLosAvisos()">🗑️ Borrar Mensajes</button>
