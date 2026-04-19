@@ -184,7 +184,7 @@
             const nombre = nombreInput.value.trim().toUpperCase();
             const codigo = codigoInput.value.trim();
             const cantidad = cantidadInput.value;
-            const ubicacion = mapaUbicaciones[codigo] || "No definida";
+            const ubicacion = mapaUbicaciones[codigo] || "No encontrado";
 
             if (!nombre || !codigo || !cantidad) return alert("Llena todos los campos.");
 
