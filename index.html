@@ -26,10 +26,8 @@
         .btn-descargar { background-color: #007bff; margin-top: 10px; width: 100%; font-size: 16px; }
         .btn-borrar-todo { background-color: #f39c12; margin-top: 10px; width: 100%; font-size: 16px; }
         
-        /* BOTÓN DE ENLACE AÑADIDO */
         .btn-enlace { background-color: #17a2b8; margin-top: 10px; width: 100%; font-size: 16px; text-decoration: none; display: inline-block; text-align: center; box-sizing: border-box; }
 
-        /* ESTILO SECCIÓN DE AVISOS (DEBAJO DE BOTONES) */
         .seccion-avisos { width: 100%; background: #fdfdfd; padding: 15px; border-radius: 10px; border: 1px solid #ddd; border-left: 5px solid #007bff; position: relative; margin-top: 10px; box-sizing: border-box; }
         .input-aviso { display: flex; gap: 10px; margin-top: 10px; }
         #textoAviso { flex: 1; padding: 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; }
@@ -126,7 +124,6 @@
             sessionStorage.setItem('tempNombre', e.target.value);
         });
 
-        // --- LÓGICA DE AVISOS ---
         window.enviarAviso = async () => {
             const input = document.getElementById('textoAviso');
             const mensaje = input.value.trim();
@@ -163,7 +160,6 @@
             }
         });
 
-        // --- LÓGICA DE INVENTARIO ---
         function escucharUbicacionesEnTiempoReal() {
             const status = document.getElementById('statusDb');
             onSnapshot(colUbicaciones, (querySnapshot) => {
@@ -250,8 +246,10 @@
             finally { btn.innerText = "📥 Descargar reporte y liberar memoria"; btn.disabled = false; }
         };
 
-        window.borrarDato = async (id) => {
-            if(confirm("¿Desea entregar?")) await deleteDoc(doc(db, "registros", id));
+        window.borrarDato = async (id, nombre, codigo) => {
+            if(confirm(`¿Desea entregar?\nOperador: ${nombre}\nCódigo: ${codigo}`)) {
+                await deleteDoc(doc(db, "registros", id));
+            }
         }
 
         onSnapshot(query(colRegistros, orderBy("timestamp", "desc")), (snapshot) => {
@@ -260,7 +258,14 @@
             snapshot.docs.forEach(docSnap => {
                 const data = docSnap.data();
                 const fecha = data.timestamp ? data.timestamp.toDate().toLocaleString() : "...";
-                tabla.innerHTML += `<tr><td>${data.nombre}</td><td><strong>${data.codigo}</strong></td><td><span class="ubicacion-tag">${data.ubicacion}</span></td><td><span class="ubicacion-tag">${data.cantidad}</span></td><td style="font-size: 11px;">${fecha}</td><td><button class="btn-borrar" onclick="borrarDato('${docSnap.id}')">Entregar</button></td></tr>`;
+                tabla.innerHTML += `<tr>
+                    <td>${data.nombre}</td>
+                    <td><strong>${data.codigo}</strong></td>
+                    <td><span class="ubicacion-tag">${data.ubicacion}</span></td>
+                    <td><span class="ubicacion-tag">${data.cantidad}</span></td>
+                    <td style="font-size: 11px;">${fecha}</td>
+                    <td><button class="btn-borrar" onclick="borrarDato('${docSnap.id}', '${data.nombre}', '${data.codigo}')">Entregar</button></td>
+                </tr>`;
             });
         });
 
