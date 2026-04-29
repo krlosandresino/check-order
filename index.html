@@ -188,10 +188,6 @@
                 const data = { nombre, codigo, cantidad, ubicacion, timestamp: serverTimestamp() };
                 await addDoc(colRegistros, data);
                 await addDoc(colHistorial, data);
-                
-                // Lógica de vibración añadida
-                if (navigator.vibrate) { navigator.vibrate(200); }
-
                 codigoInput.value = '';
                 cantidadInput.value = '';
                 codigoInput.focus(); 
