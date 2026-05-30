@@ -40,6 +40,7 @@
         th { background-color: #007bff; color: white; }
         .ubicacion-tag { background: #fff3cd; color: #856404; padding: 4px 8px; border-radius: 4px; font-weight: bold; font-size: 13px; }
         #statusDb { font-size: 14px; margin-left: 10px; color: #666; }
+        #contadorPendientes { font-size: 14px; font-weight: bold; color: #dc3545; float: right; margin-right: 10px; }
     </style>
 </head>
 <body>
@@ -51,7 +52,7 @@
         <div class="admin-content">
             <h3>Cargar Base de Datos de Ubicaciones</h3>
             <input type="file" id="excelInput" accept=".xlsx, .xls">
-            <button class="btn-admin" onclick="procesarYSubirExcel()">☁️ Cargar y actualizar</button>
+            <button class="btn-admin" onclick="procesarYSubirExcel()">☁️ Subir y Reemplazar Todo</button>
             <div id="progresoCarga" style="margin-top: 10px; font-weight: bold; color: #007bff;"></div>
         </div>
     </details>
@@ -59,6 +60,7 @@
     <div class="form-group">
         <div style="width: 100%; margin-bottom: 10px;">
             <span id="statusDb">⏳ Sincronizando...</span>
+            <span id="contadorPendientes">📋 Códigos Pendientes: 0</span>
         </div>
         <input type="text" id="nombreInput" placeholder="operador / check">
         <input type="number" id="codigoInput" placeholder="Código">
@@ -255,6 +257,10 @@
         onSnapshot(query(colRegistros, orderBy("timestamp", "desc")), (snapshot) => {
             const tabla = document.getElementById('tablaCuerpo');
             tabla.innerHTML = "";
+            
+            // Actualización del contador en tiempo real basada en los registros pendientes
+            document.getElementById('contadorPendientes').innerText = `📋 Códigos Pendientes: ${snapshot.size}`;
+            
             snapshot.docs.forEach(docSnap => {
                 const data = docSnap.data();
                 const fecha = data.timestamp ? data.timestamp.toDate().toLocaleString() : "...";
