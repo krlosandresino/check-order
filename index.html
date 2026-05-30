@@ -41,6 +41,14 @@
         .ubicacion-tag { background: #fff3cd; color: #856404; padding: 4px 8px; border-radius: 4px; font-weight: bold; font-size: 13px; }
         #statusDb { font-size: 14px; margin-left: 10px; color: #666; }
         #contadorPendientes { font-size: 14px; font-weight: bold; color: #dc3545; float: right; margin-right: 10px; }
+
+        /* Estilos nuevos para Alertas Visuales Críticas sin romper el diseño base */
+        .fila-error { background-color: #fce8e6 !important; animation: parpadeoAlerta 2s infinite alternate; }
+        .ubicacion-error { background: #f8d7da !important; color: #721c24 !important; border: 1px solid #f5c6cb; }
+        @keyframes parpadeoAlerta {
+            0% { background-color: #fce8e6; }
+            100% { background-color: #ffffff; }
+        }
     </style>
 </head>
 <body>
@@ -60,7 +68,7 @@
     <div class="form-group">
         <div style="width: 100%; margin-bottom: 10px;">
             <span id="statusDb">⏳ Sincronizando...</span>
-            <span id="contadorPendientes">📋 Códigos Pendientes: 0</span>
+            <span id="contadorPendientes">📋 Pendientes: 0</span>
         </div>
         <input type="text" id="nombreInput" placeholder="operador / check">
         <input type="number" id="codigoInput" placeholder="Código">
@@ -258,16 +266,21 @@
             const tabla = document.getElementById('tablaCuerpo');
             tabla.innerHTML = "";
             
-            // Actualización del contador en tiempo real basada en los registros pendientes
-            document.getElementById('contadorPendientes').innerText = `📋 Códigos Pendientes: ${snapshot.size}`;
+            document.getElementById('contadorPendientes').innerText = `📋 Pendientes: ${snapshot.size}`;
             
             snapshot.docs.forEach(docSnap => {
                 const data = docSnap.data();
                 const fecha = data.timestamp ? data.timestamp.toDate().toLocaleString() : "...";
-                tabla.innerHTML += `<tr>
+                
+                // Comprobación de Alerta Crítica ("No encontrado")
+                const esError = data.ubicacion === "No encontrado";
+                const claseFila = esError ? 'class="fila-error"' : '';
+                const claseTag = esError ? 'ubicacion-tag ubicacion-error' : 'ubicacion-tag';
+
+                tabla.innerHTML += `<tr ${claseFila}>
                     <td>${data.nombre}</td>
                     <td><strong>${data.codigo}</strong></td>
-                    <td><span class="ubicacion-tag">${data.ubicacion}</span></td>
+                    <td><span class="${claseTag}">${data.ubicacion}</span></td>
                     <td><span class="ubicacion-tag">${data.cantidad}</span></td>
                     <td style="font-size: 11px;">${fecha}</td>
                     <td><button class="btn-borrar" onclick="borrarDato('${docSnap.id}', '${data.nombre}', '${data.codigo}')">Entregar</button></td>
