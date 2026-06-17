@@ -7,7 +7,8 @@
     <script src="https://cdn.sheetjs.com/xlsx-0.19.3/package/dist/xlsx.full.min.js"></script>
     <style>
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 1000px; margin: 0 auto; padding: 20px; background-color: #f0f2f5; }
-        h1 { text-align: center; color: #333; margin-bottom: 10px; }
+        .header-container { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+        h1 { color: #333; margin: 0; }
         
         .form-group { background: white; padding: 25px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 20px;}
         details { background: #e9ecef; border-radius: 10px; margin-bottom: 20px; border: 1px solid #adb5bd; overflow: hidden; }
@@ -27,6 +28,7 @@
         .btn-borrar-todo { background-color: #f39c12; margin-top: 10px; width: 100%; font-size: 16px; }
         
         .btn-enlace { background-color: #17a2b8; margin-top: 10px; width: 100%; font-size: 16px; text-decoration: none; display: inline-block; text-align: center; box-sizing: border-box; }
+        .btn-dashboard { background-color: #6c757d; padding: 10px 15px; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 14px; white-space: nowrap; color: white; }
 
         .seccion-avisos { width: 100%; background: #fdfdfd; padding: 15px; border-radius: 10px; border: 1px solid #ddd; border-left: 5px solid #007bff; position: relative; margin-top: 10px; box-sizing: border-box; }
         .input-aviso { display: flex; gap: 10px; margin-top: 10px; }
@@ -42,7 +44,6 @@
         #statusDb { font-size: 14px; margin-left: 10px; color: #666; }
         #contadorPendientes { font-size: 14px; font-weight: bold; color: #dc3545; float: right; margin-right: 10px; }
 
-        /* Estilos nuevos para Alertas Visuales Críticas sin romper el diseño base */
         .fila-error { background-color: #fce8e6 !important; animation: parpadeoAlerta 2s infinite alternate; }
         .ubicacion-error { background: #f8d7da !important; color: #721c24 !important; border: 1px solid #f5c6cb; }
         @keyframes parpadeoAlerta {
@@ -53,7 +54,10 @@
 </head>
 <body>
 
-    <h1>📦 Solicitud de código</h1>
+    <div class="header-container">
+        <h1>📦 Solicitud de código</h1>
+        <a href="https://krlosandresino.github.io/dashboard-de-productos/" target="_blank" class="btn-dashboard">📊 Ir al Dashboard</a>
+    </div>
 
     <details>
         <summary>⚙️ Panel de Actualización de Ubicaciones</summary>
@@ -104,6 +108,7 @@
     </table>
 
     <script type="module">
+        // [Se mantiene tu lógica JS intacta...]
         import { initializeApp } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js";
         import { getFirestore, collection, addDoc, onSnapshot, orderBy, query, serverTimestamp, deleteDoc, doc, writeBatch, getDocs, limit } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js";
 
@@ -272,7 +277,6 @@
                 const data = docSnap.data();
                 const fecha = data.timestamp ? data.timestamp.toDate().toLocaleString() : "...";
                 
-                // Comprobación de Alerta Crítica ("No encontrado")
                 const esError = data.ubicacion === "No encontrado";
                 const claseFila = esError ? 'class="fila-error"' : '';
                 const claseTag = esError ? 'ubicacion-tag ubicacion-error' : 'ubicacion-tag';
