@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Check Order</title>
+    <title>🖥️ Check Order</title>
     <script src="https://cdn.sheetjs.com/xlsx-0.19.3/package/dist/xlsx.full.min.js"></script>
     <style>
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 1000px; margin: 0 auto; padding: 20px; background-color: #f0f2f5; }
@@ -59,7 +59,7 @@
 <body>
 
     <div class="header-container">
-        <h1>📦 Solicitud de código</h1>
+        <h1>🖥️ Solicitud de código</h1>
         <a href="https://krlosandresino.github.io/dashboard-de-productos/" target="_blank" class="btn-dashboard">📊 Ir al Dashboard</a>
     </div>
 
@@ -67,8 +67,10 @@
         <summary>⚙️ Panel de Actualización de Ubicaciones</summary>
         <div class="admin-content">
             <h3>Cargar Base de Datos de Ubicaciones</h3>
-            <input type="file" id="excelInput" accept=".xlsx, .xls">
-            <button class="btn-admin" onclick="procesarYSubirExcel()">☁️ Subir y Reemplazar Todo</button>
+            <p style="font-size: 13px; margin-bottom: 10px;">⚠️ Al subir, se reemplazará la base actual.</p>
+            <input type="file" id="excelInput" accept=".xlsx, .xls" style="max-width: 100%;">
+            <br>
+            <button class="btn-admin" onclick="procesarYSubirExcel()">☁️ Cargar y Actualizar Todo</button>
             <div id="progresoCarga" style="margin-top: 10px; font-weight: bold; color: #007bff;"></div>
         </div>
     </details>
