@@ -34,7 +34,12 @@
         .input-aviso { display: flex; gap: 10px; margin-top: 10px; }
         #textoAviso { flex: 1; padding: 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; }
         #contenedorAvisos { max-height: 120px; overflow-y: auto; font-size: 20px; color: #333; padding: 8px; background: #f8f9fa; border-radius: 4px; border: 1px solid #eee; }
-        .aviso-item { padding: 6px 0; border-bottom: 1px solid #eee; font-weight: 500; }
+        
+        /* Ajuste para acomodar el botón al inicio (izq) */
+        .aviso-item { padding: 6px 0; border-bottom: 1px solid #eee; font-weight: 500; display: flex; align-items: center; }
+        .btn-eliminar-aviso { background: none; border: none; color: #dc3545; cursor: pointer; font-size: 14px; padding: 2px 6px; order: 0; transition: transform 0.1s; }
+        .btn-eliminar-aviso:hover { transform: scale(1.2); opacity: 1; }
+
         .btn-limpiar-avisos { position: absolute; top: 10px; right: 15px; background: #dc3545; color: white; border: none; padding: 4px 8px; border-radius: 4px; font-size: 10px; cursor: pointer; }
 
         table { width: 100%; border-collapse: collapse; background: white; border-radius: 10px; overflow: hidden; }
@@ -108,7 +113,6 @@
     </table>
 
     <script type="module">
-        // [Se mantiene tu lógica JS intacta...]
         import { initializeApp } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js";
         import { getFirestore, collection, addDoc, onSnapshot, orderBy, query, serverTimestamp, deleteDoc, doc, writeBatch, getDocs, limit } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js";
 
@@ -163,14 +167,25 @@
             } catch (e) { alert("Error al borrar: " + e.message); }
         };
 
+        window.borrarAvisoIndividual = async (id) => {
+            if(!confirm("¿Desea eliminar este mensaje?")) return;
+            try {
+                await deleteDoc(doc(db, "avisos", id));
+            } catch (e) { alert("Error al eliminar: " + e.message); }
+        };
+
         onSnapshot(query(colAvisos, orderBy("timestamp", "desc"), limit(10)), (snapshot) => {
             const contenedor = document.getElementById('contenedorAvisos');
             contenedor.innerHTML = "";
             if(snapshot.empty) {
                 contenedor.innerHTML = "<i>No hay novedades.</i>";
             } else {
-                snapshot.docs.forEach(doc => {
-                    contenedor.innerHTML += `<div class="aviso-item">📢 ${doc.data().mensaje}</div>`;
+                snapshot.docs.forEach(docSnap => {
+                    contenedor.innerHTML += `
+                        <div class="aviso-item" style="justify-content: flex-start; gap: 10px;">
+                            <button class="btn-eliminar-aviso" onclick="borrarAvisoIndividual('${docSnap.id}')" title="Eliminar mensaje">❌</button>
+                            <span>📢 ${docSnap.data().mensaje}</span>
+                        </div>`;
                 });
             }
         });
