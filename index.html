@@ -330,8 +330,8 @@
                 for (let i = 0; i < jsonData.length; i += 400) {
                     const batchSubida = writeBatch(db);
                     jsonData.slice(i, i + 400).forEach(fila => {
-                        const codigo = String(fila.codigo || fila.Codigo || "").trim();
-                        const ubicacion = String(fila.ubicacion || fila.Ubicacion || "").trim();
+                        const codigo = String(fila.codigo || fila["Código Producto"] || fila.Codigo || "").trim();
+                        const ubicacion = String(fila.ubicacion || fila.Caja || fila.Ubicacion || "").trim();
                         if (codigo) batchSubida.set(doc(colUbicaciones, codigo), { ubicacion: ubicacion });
                     });
                     await batchSubida.commit();
