@@ -90,7 +90,7 @@
         <a href="https://krlosandresino.github.io/buscador-productos/" target="_blank" class="btn-enlace" style="color: white; padding: 12px 25px; border-radius: 6px; font-weight: bold;">🔍 Ir al Buscador de Productos</a>
 
         <div class="seccion-avisos">
-            <button class="btn-limpiar-avisos" onclick="borrarTodosLosAvisos()">🗑️ Borrar Mensajes</button>
+            <button class="btn-limpiar-avisos" onclick="borrarTodosLosAvisos()">🗑️ Borrar todos los mensajes</button>
             <div id="contenedorAvisos"><i>Cargando novedades...</i></div>
             <div class="input-aviso">
                 <input type="text" id="textoAviso" placeholder="Escribe una notificación para el equipo...">
@@ -184,7 +184,7 @@
                 snapshot.docs.forEach(docSnap => {
                     contenedor.innerHTML += `
                         <div class="aviso-item" style="justify-content: flex-start; gap: 10px;">
-                            <button class="btn-eliminar-aviso" onclick="borrarAvisoIndividual('${docSnap.id}')" title="Eliminar mensaje">❌</button>
+                            <button class="btn-eliminar-aviso" onclick="borrarAvisoIndividual('${docSnap.id}')" title="Eliminar mensaje">🗑️</button>
                             <span>📢 ${docSnap.data().mensaje}</span>
                         </div>`;
                 });
