@@ -220,11 +220,18 @@
 
             try {
                 const data = { nombre, codigo, cantidad, ubicacion, timestamp: serverTimestamp() };
-                await addDoc(colRegistros, data);
-                await addDoc(colHistorial, data);
+                
+                // 1. Limpiar la interfaz de inmediato para no hacerte esperar
                 codigoInput.value = '';
                 cantidadInput.value = '';
                 codigoInput.focus(); 
+
+                // 2. Guardar en ambas bases de datos de Firebase en paralelo y en segundo plano
+                Promise.all([
+                    addDoc(colRegistros, data),
+                    addDoc(colHistorial, data)
+                ]).catch(e => alert("Error al guardar en la nube: " + e.message));
+                
             } catch (e) { alert("Error: " + e.message); }
         }
 
@@ -288,9 +295,11 @@
 
         onSnapshot(query(colRegistros, orderBy("timestamp", "desc")), (snapshot) => {
             const tabla = document.getElementById('tablaCuerpo');
-            tabla.innerHTML = "";
             
             document.getElementById('contadorPendientes').innerText = `📋 Pendientes: ${snapshot.size}`;
+            
+            // Variable para agrupar todo el HTML antes de inyectarlo
+            let filasHTML = "";
             
             snapshot.docs.forEach(docSnap => {
                 const data = docSnap.data();
@@ -300,7 +309,7 @@
                 const claseFila = esError ? 'class="fila-error"' : '';
                 const claseTag = esError ? 'ubicacion-tag ubicacion-error' : 'ubicacion-tag';
 
-                tabla.innerHTML += `<tr ${claseFila}>
+                filasHTML += `<tr ${claseFila}>
                     <td>${data.nombre}</td>
                     <td><strong>${data.codigo}</strong></td>
                     <td><span class="${claseTag}">${data.ubicacion}</span></td>
@@ -309,6 +318,9 @@
                     <td><button class="btn-borrar" onclick="borrarDato('${docSnap.id}', '${data.nombre}', '${data.codigo}')">Entregar</button></td>
                 </tr>`;
             });
+
+            // Se dibuja la tabla una sola vez, eliminando el lag visual
+            tabla.innerHTML = filasHTML;
         });
 
         window.procesarYSubirExcel = async () => {
