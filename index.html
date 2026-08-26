@@ -56,22 +56,21 @@
             100% { background-color: #ffffff; }
         }
 
-        /* --- NUEVO CÓDIGO CSS: Diseño de Tarjetas para Móviles --- */
+        /* --- NUEVO CÓDIGO CSS: Diseño de Tarjetas COMPACTAS para Móviles --- */
         @media screen and (max-width: 768px) {
             table, thead, tbody, th, td, tr { display: block; }
-            thead tr { position: absolute; top: -9999px; left: -9999px; } /* Oculta encabezados visualmente */
-            tr { margin-bottom: 15px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); border: 1px solid #ddd; overflow: hidden; }
-            td { border: none; border-bottom: 1px solid #eee; position: relative; padding-left: 35%; text-align: right; display: flex; justify-content: flex-end; align-items: center; min-height: 40px; }
-            td:before { position: absolute; left: 15px; width: 30%; white-space: nowrap; text-align: left; font-weight: bold; color: #555; font-size: 13px; }
-            /* Etiquetas para cada fila */
+            thead tr { position: absolute; top: -9999px; left: -9999px; } 
+            tr { margin-bottom: 8px; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.15); border: 1px solid #ccc; overflow: hidden; }
+            td { border: none; border-bottom: 1px solid #eee; position: relative; padding: 4px 8px 4px 30%; text-align: right; display: flex; justify-content: flex-end; align-items: center; font-size: 13px; min-height: 24px; }
+            td:before { position: absolute; left: 8px; width: 25%; white-space: nowrap; text-align: left; font-weight: bold; color: #555; font-size: 12px; }
             td:nth-of-type(1):before { content: "Nombre:"; }
             td:nth-of-type(2):before { content: "Código:"; }
-            td:nth-of-type(3):before { content: "Ubicación:"; }
+            td:nth-of-type(3):before { content: "Ubic.:"; }
             td:nth-of-type(4):before { content: "Cant.:"; }
             td:nth-of-type(5):before { content: "Fecha:"; }
-            td:last-child { border-bottom: 0; padding: 15px; justify-content: center; }
-            td:last-child:before { display: none; } /* Oculta la etiqueta "Acción" para el botón */
-            .btn-borrar { width: 100%; padding: 12px; font-size: 16px; } /* Botón más grande para pulsar con el dedo */
+            td:last-child { border-bottom: 0; padding: 6px 8px; justify-content: center; }
+            td:last-child:before { display: none; } 
+            .btn-borrar { width: 100%; padding: 8px; font-size: 14px; margin: 0; } 
         }
     </style>
 </head>
