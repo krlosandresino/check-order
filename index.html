@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>🖥️ Check Order</title>
     <script src="https://cdn.sheetjs.com/xlsx-0.19.3/package/dist/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <style>
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 1000px; margin: 0 auto; padding: 20px; background-color: #f0f2f5; }
         .header-container { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
@@ -288,9 +289,30 @@
         };
 
         window.borrarDato = async (id, nombre, codigo) => {
-            if(confirm(`¿Desea entregar?\nOperador: ${nombre}\nCódigo: ${codigo}`)) {
-                await deleteDoc(doc(db, "registros", id));
-            }
+            Swal.fire({
+                title: '<h3 style="margin:0; font-size: 18px;">¿Entregar?</h3>',
+                html: `<p style="margin:5px 0; font-size: 14px;">Operador: <b>${nombre}</b><br>Código: <b>${codigo}</b></p>`,
+                icon: 'warning',
+                width: '280px', /* Ancho reducido ideal para móviles */
+                padding: '15px', /* Menos relleno */
+                showCancelButton: true,
+                confirmButtonColor: '#28a745',
+                cancelButtonColor: '#dc3545',
+                confirmButtonText: 'Sí',
+                cancelButtonText: 'No'
+            }).then(async (result) => {
+                if (result.isConfirmed) {
+                    await deleteDoc(doc(db, "registros", id));
+                    Swal.fire({
+                        title: '<span style="font-size: 16px;">¡Entregado!</span>',
+                        icon: 'success',
+                        width: '240px',
+                        padding: '10px',
+                        timer: 1500,
+                        showConfirmButton: false
+                    });
+                }
+            });
         }
 
         onSnapshot(query(colRegistros, orderBy("timestamp", "desc")), (snapshot) => {
