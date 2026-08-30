@@ -29,6 +29,7 @@
         
         .btn-enlace { background-color: #17a2b8; margin-top: 10px; width: 100%; font-size: 16px; text-decoration: none; display: inline-block; text-align: center; box-sizing: border-box; }
         .btn-dashboard { background-color: #6c757d; padding: 10px 15px; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 14px; white-space: nowrap; color: white; }
+        .btn-buscar-img { background-color: #17a2b8; padding: 10px 15px; border-radius: 6px; font-weight: bold; font-size: 14px; white-space: nowrap; color: white; border: none; cursor: pointer; }
 
         .seccion-avisos { width: 100%; background: #fdfdfd; padding: 15px; border-radius: 10px; border: 1px solid #ddd; border-left: 5px solid #007bff; position: relative; margin-top: 10px; box-sizing: border-box; }
         .input-aviso { display: flex; gap: 10px; margin-top: 10px; }
@@ -54,13 +55,21 @@
             0% { background-color: #fce8e6; }
             100% { background-color: #ffffff; }
         }
+
+        /* Estilos de la ventana Modal para Consultar Imagen */
+        #modalImagenOverlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 1000; align-items: center; justify-content: center; backdrop-filter: blur(3px); }
+        .modal-caja { background: white; padding: 25px; border-radius: 10px; width: 320px; box-shadow: 0 5px 15px rgba(0,0,0,0.3); text-align: center; }
+        .modal-caja h3 { margin-top: 0; color: #333; margin-bottom: 15px; }
     </style>
 </head>
 <body>
 
     <div class="header-container">
         <h1>🖥️ Solicitud de código</h1>
-        <a href="https://dashboard-de-picking.vercel.app/" target="_blank" class="btn-dashboard">📊 Ir al Dashboard</a>
+        <div style="display: flex; gap: 10px; align-items: center;">
+            <button onclick="abrirModalImagen()" class="btn-buscar-img">🖼️ Consultar Imagen</button>
+            <a href="https://dashboard-de-picking.vercel.app/" target="_blank" class="btn-dashboard">📊 Ir al Dashboard</a>
+        </div>
     </div>
 
     <details>
@@ -113,9 +122,20 @@
         <tbody id="tablaCuerpo"></tbody>
     </table>
 
+    <!-- Ventana Modal de Consulta de Imagen -->
+    <div id="modalImagenOverlay">
+        <div class="modal-caja">
+            <h3>🔍 Consultar Imagen</h3>
+            <input type="number" id="codigoModalInput" placeholder="Ingrese el código..." style="width: 100%; margin-bottom: 15px; box-sizing: border-box; text-align: center;">
+            <button class="btn-guardar" id="btnBuscarGoogle" onclick="buscarImagenGoogle()" style="width: 100%; margin-bottom: 10px;">Ver imagen en línea</button>
+            <button class="btn-borrar" onclick="cerrarModalImagen()" style="width: 100%; padding: 10px; font-size: 14px;">Cancelar</button>
+        </div>
+    </div>
+
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js";
-        import { getFirestore, collection, addDoc, onSnapshot, orderBy, query, serverTimestamp, deleteDoc, doc, writeBatch, getDocs, limit } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js";
+        /* ATENCIÓN: Se agregó getDoc a la importación para consultar directamente la base de datos */
+        import { getFirestore, collection, addDoc, onSnapshot, orderBy, query, serverTimestamp, deleteDoc, doc, writeBatch, getDocs, limit, getDoc } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyCzZFPcSUPwWYIe4w3IW7pDluIchGMqWoU",
@@ -195,7 +215,9 @@
             const status = document.getElementById('statusDb');
             onSnapshot(colUbicaciones, (querySnapshot) => {
                 mapaUbicaciones = {};
-                querySnapshot.forEach((doc) => { mapaUbicaciones[doc.id] = doc.data().ubicacion; });
+                querySnapshot.forEach((doc) => { 
+                    mapaUbicaciones[doc.id] = doc.data().ubicacion; 
+                });
                 status.innerHTML = `✅ ${Object.keys(mapaUbicaciones).length} ubicaciones sincronizadas.`;
                 status.style.color = "green";
             }, (error) => {
@@ -204,6 +226,55 @@
             });
         }
         escucharUbicacionesEnTiempoReal();
+
+        // Lógica de Ventana Modal e Imagenes conectada directo a Firebase
+        window.abrirModalImagen = () => {
+            document.getElementById('modalImagenOverlay').style.display = 'flex';
+            document.getElementById('codigoModalInput').focus();
+        };
+
+        window.cerrarModalImagen = () => {
+            document.getElementById('modalImagenOverlay').style.display = 'none';
+            document.getElementById('codigoModalInput').value = '';
+        };
+
+        window.buscarImagenGoogle = async () => {
+            const cod = document.getElementById('codigoModalInput').value.trim();
+            if (!cod) return alert("Por favor, ingrese un código para buscar.");
+            
+            const btnBuscar = document.getElementById('btnBuscarGoogle');
+            btnBuscar.innerText = "Consultando a la nube...";
+            btnBuscar.disabled = true;
+
+            try {
+                // Consulta directa a la base de datos (nube) usando la referencia doc()
+                const docRef = doc(db, "ubicaciones_diarias", cod);
+                const docSnap = await getDoc(docRef);
+
+                if (docSnap.exists()) {
+                    const data = docSnap.data();
+                    const descripcion = data.descripcion || ""; 
+                    let queryTerm = cod;
+
+                    if (descripcion !== "") {
+                        queryTerm = `${cod} ${descripcion}`; // Ejemplo: 832020 Promobox...
+                    } else {
+                        alert("⚠️ El código fue encontrado en la nube, pero aún no tiene una descripción guardada (vuelve a subir tu Excel para actualizar).");
+                    }
+                    
+                    const url = `https://www.google.com/search?tbm=isch&q=${encodeURIComponent(queryTerm)}`;
+                    window.open(url, '_blank');
+                    cerrarModalImagen();
+                } else {
+                    alert("❌ Código no encontrado en la base de datos.");
+                }
+            } catch (error) {
+                alert("Error de conexión al consultar la base de datos: " + error.message);
+            } finally {
+                btnBuscar.innerText = "Buscar en Google Imágenes";
+                btnBuscar.disabled = false;
+            }
+        };
 
         window.guardarDatos = async () => {
             const codigoInput = document.getElementById('codigoInput');
@@ -344,7 +415,10 @@
                     jsonData.slice(i, i + 400).forEach(fila => {
                         const codigo = String(fila.codigo || fila["Código Producto"] || fila.Codigo || "").trim();
                         const ubicacion = String(fila.ubicacion || fila.Caja || fila.Ubicacion || "").trim();
-                        if (codigo) batchSubida.set(doc(colUbicaciones, codigo), { ubicacion: ubicacion });
+                        // Se agrega lógica para capturar el encabezado "Descripción", "Descripcion" o "descripcion"
+                        const descripcion = String(fila.Descripción || fila.Descripcion || fila.descripcion || "").trim();
+                        
+                        if (codigo) batchSubida.set(doc(colUbicaciones, codigo), { ubicacion: ubicacion, descripcion: descripcion });
                     });
                     await batchSubida.commit();
                 }
@@ -356,6 +430,9 @@
         document.getElementById('codigoInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') document.getElementById('cantidadInput').focus(); });
         document.getElementById('cantidadInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') window.guardarDatos(); });
         document.getElementById('textoAviso').addEventListener('keydown', (e) => { if (e.key === 'Enter') window.enviarAviso(); });
+        
+        // Listener para buscar imagen dando Enter en el input de la Modal
+        document.getElementById('codigoModalInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') window.buscarImagenGoogle(); });
 
         document.addEventListener('contextmenu', e => e.preventDefault());
         document.addEventListener('keydown', e => {
