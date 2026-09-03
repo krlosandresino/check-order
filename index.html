@@ -90,8 +90,11 @@
             <span id="contadorPendientes">📋 Pendientes: 0</span>
         </div>
         <input type="text" id="nombreInput" placeholder="operador / check">
-        <input type="number" id="codigoInput" placeholder="Código" oninput="if(this.value.length > 6) this.value = this.value.slice(0, 6);">
-        <input type="number" id="cantidadInput" placeholder="Cantidad" min="1" oninput="if(this.value < 0) this.value = ''; if(this.value.length > 2) this.value = this.value.slice(0, 2);">
+        
+        <!-- SE MODIFICARON LOS CAMPOS DE CÓDIGO Y CANTIDAD AQUÍ PARA BLOQUEAR NEGATIVOS -->
+        <input type="number" id="codigoInput" placeholder="Código" min="0" onkeydown="if(['-','+','e',',','.'].includes(event.key)) event.preventDefault();" oninput="if(this.value < 0) this.value = ''; if(this.value.length > 6) this.value = this.value.slice(0, 6);">
+        <input type="number" id="cantidadInput" placeholder="Cantidad" min="1" onkeydown="if(['-','+','e',',','.'].includes(event.key)) event.preventDefault();" oninput="if(this.value < 0) this.value = ''; if(this.value.length > 2) this.value = this.value.slice(0, 2);">
+        
         <button class="btn-guardar" onclick="guardarDatos()">+ Agregar</button>
         <button class="btn-descargar" onclick="descargarYLimpiarHistorial()">📥 Descargar reporte y liberar memoria</button>
         <button class="btn-borrar-todo" onclick="limpiarTodoVista()">🗑️ Limpiar Vista</button>
