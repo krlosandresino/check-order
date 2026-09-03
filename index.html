@@ -132,9 +132,27 @@
         </div>
     </div>
 
+    <!-- Ventana Modal Flotante de Confirmación -->
+    <div id="modalConfirmacionOverlay" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 1000; align-items: center; justify-content: center; backdrop-filter: blur(3px);">
+        <div class="modal-caja">
+            <h3>⚠️ Confirmación</h3>
+            <p id="textoConfirmacion" style="margin-bottom: 20px; font-size: 16px; color: #333;"></p>
+            <button class="btn-guardar" onclick="ejecutarConfirmacion()" style="width: 100%; margin-bottom: 10px;">Sí, pedir</button>
+            <button class="btn-borrar" onclick="document.getElementById('modalConfirmacionOverlay').style.display='none'" style="width: 100%; padding: 10px; font-size: 14px;">Cancelar</button>
+        </div>
+    </div>
+
+    <!-- Nueva Ventana Modal Flotante de Error de Código -->
+    <div id="modalErrorOverlay" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 1050; align-items: center; justify-content: center; backdrop-filter: blur(3px);">
+        <div class="modal-caja">
+            <h3>❌ Código no encontrado</h3>
+            <p style="margin-bottom: 20px; font-size: 16px; color: #333;">Este código no se encuentra en la plataforma.</p>
+            <button class="btn-borrar" onclick="cerrarModalError()" style="width: 100%; padding: 10px; font-size: 14px;">Aceptar</button>
+        </div>
+    </div>
+
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js";
-        /* ATENCIÓN: Se agregó getDoc a la importación para consultar directamente la base de datos */
         import { getFirestore, collection, addDoc, onSnapshot, orderBy, query, serverTimestamp, deleteDoc, doc, writeBatch, getDocs, limit, getDoc } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js";
 
         const firebaseConfig = {
@@ -227,7 +245,7 @@
         }
         escucharUbicacionesEnTiempoReal();
 
-        // Lógica de Ventana Modal e Imagenes conectada directo a Firebase
+        // Lógica de Ventana Modal e Imagenes
         window.abrirModalImagen = () => {
             document.getElementById('modalImagenOverlay').style.display = 'flex';
             document.getElementById('codigoModalInput').focus();
@@ -236,6 +254,11 @@
         window.cerrarModalImagen = () => {
             document.getElementById('modalImagenOverlay').style.display = 'none';
             document.getElementById('codigoModalInput').value = '';
+        };
+
+        window.cerrarModalError = () => {
+            document.getElementById('modalErrorOverlay').style.display = 'none';
+            document.getElementById('codigoInput').focus();
         };
 
         window.buscarImagenGoogle = async () => {
@@ -247,7 +270,6 @@
             btnBuscar.disabled = true;
 
             try {
-                // Consulta directa a la base de datos (nube) usando la referencia doc()
                 const docRef = doc(db, "ubicaciones_diarias", cod);
                 const docSnap = await getDoc(docRef);
 
@@ -257,7 +279,7 @@
                     let queryTerm = cod;
 
                     if (descripcion !== "") {
-                        queryTerm = `${cod} ${descripcion}`; // Ejemplo: 832020 Promobox...
+                        queryTerm = `${cod} ${descripcion}`;
                     } else {
                         alert("⚠️ El código fue encontrado en la nube, pero aún no tiene una descripción guardada (vuelve a subir tu Excel para actualizar).");
                     }
@@ -276,35 +298,70 @@
             }
         };
 
+        // Lógica de validación flotante
+        let callbackConfirmacion = null;
+
+        window.mostrarModalConfirmacion = (cantidad, callback) => {
+            document.getElementById('textoConfirmacion').innerText = `¿Estás seguro de pedir ${cantidad} unidades?`;
+            document.getElementById('modalConfirmacionOverlay').style.display = 'flex';
+            callbackConfirmacion = callback;
+        };
+
+        window.ejecutarConfirmacion = () => {
+            document.getElementById('modalConfirmacionOverlay').style.display = 'none';
+            if (callbackConfirmacion) {
+                callbackConfirmacion();
+                callbackConfirmacion = null; 
+            }
+        };
+
         window.guardarDatos = async () => {
             const codigoInput = document.getElementById('codigoInput');
             const cantidadInput = document.getElementById('cantidadInput');
             const nombre = nombreInput.value.trim().toUpperCase();
             const codigo = codigoInput.value.trim();
             const cantidad = parseInt(cantidadInput.value, 10);
-            const ubicacion = mapaUbicaciones[codigo] || "No encontrado";
+
+            // NUEVA VALIDACIÓN: Bloquea si el código no está en la base de datos
+            if (codigo !== "" && !mapaUbicaciones[codigo]) {
+                document.getElementById('modalErrorOverlay').style.display = 'flex';
+                return;
+            }
+
+            const ubicacion = mapaUbicaciones[codigo];
 
             if (!nombre || !codigo || isNaN(cantidad)) return alert("Llena todos los campos.");
             if (cantidad <= 0) return alert("La cantidad debe ser mayor a cero.");
             if (codigo.length > 6) return alert("El código no puede tener más de 6 dígitos.");
             if (cantidadInput.value.length > 2) return alert("La cantidad no puede tener más de 2 dígitos.");
 
+            // Si la cantidad es mayor a 9, muestra la ventana flotante en vez de guardar de inmediato
+            if (cantidad > 9) {
+                window.mostrarModalConfirmacion(cantidad, () => {
+                    procesarGuardado(nombre, codigo, cantidad, ubicacion, codigoInput, cantidadInput);
+                });
+                return; 
+            }
+
+            // Si es 9 o menos, guarda normalmente
+            procesarGuardado(nombre, codigo, cantidad, ubicacion, codigoInput, cantidadInput);
+        }
+
+        const procesarGuardado = (nombre, codigo, cantidad, ubicacion, codigoInput, cantidadInput) => {
             try {
                 const data = { nombre, codigo, cantidad, ubicacion, timestamp: serverTimestamp() };
                 
-                // 1. Limpiar la interfaz de inmediato para no hacerte esperar
                 codigoInput.value = '';
                 cantidadInput.value = '';
                 codigoInput.focus(); 
 
-                // 2. Guardar en ambas bases de datos de Firebase en paralelo y en segundo plano
                 Promise.all([
                     addDoc(colRegistros, data),
                     addDoc(colHistorial, data)
                 ]).catch(e => alert("Error al guardar en la nube: " + e.message));
                 
             } catch (e) { alert("Error: " + e.message); }
-        }
+        };
 
         window.limpiarTodoVista = async () => {
             if(!confirm("¿Desea borrar TODOS los registros de la lista actual?")) return;
@@ -369,13 +426,13 @@
             
             document.getElementById('contadorPendientes').innerText = `📋 Pendientes: ${snapshot.size}`;
             
-            // Variable para agrupar todo el HTML antes de inyectarlo
             let filasHTML = "";
             
             snapshot.docs.forEach(docSnap => {
                 const data = docSnap.data();
                 const fecha = data.timestamp ? data.timestamp.toDate().toLocaleString() : "...";
                 
+                // Si por alguna razón histórica quedó un registro de error, se mostrará, pero los nuevos ya no permitirán crearlo.
                 const esError = data.ubicacion === "No encontrado";
                 const claseFila = esError ? 'class="fila-error"' : '';
                 const claseTag = esError ? 'ubicacion-tag ubicacion-error' : 'ubicacion-tag';
@@ -390,7 +447,6 @@
                 </tr>`;
             });
 
-            // Se dibuja la tabla una sola vez, eliminando el lag visual
             tabla.innerHTML = filasHTML;
         });
 
@@ -415,7 +471,6 @@
                     jsonData.slice(i, i + 400).forEach(fila => {
                         const codigo = String(fila.codigo || fila["Código Producto"] || fila.Codigo || "").trim();
                         const ubicacion = String(fila.ubicacion || fila.Caja || fila.Ubicacion || "").trim();
-                        // Se agrega lógica para capturar el encabezado "Descripción", "Descripcion" o "descripcion"
                         const descripcion = String(fila.Descripción || fila.Descripcion || fila.descripcion || "").trim();
                         
                         if (codigo) batchSubida.set(doc(colUbicaciones, codigo), { ubicacion: ubicacion, descripcion: descripcion });
@@ -427,11 +482,22 @@
         };
 
         nombreInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') document.getElementById('codigoInput').focus(); });
-        document.getElementById('codigoInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') document.getElementById('cantidadInput').focus(); });
+        
+        // NUEVA VALIDACIÓN: Al dar Enter en el código, revisa primero si existe en el mapa
+        document.getElementById('codigoInput').addEventListener('keydown', (e) => { 
+            if (e.key === 'Enter') {
+                const cod = document.getElementById('codigoInput').value.trim();
+                if (cod !== "" && !mapaUbicaciones[cod]) {
+                    document.getElementById('modalErrorOverlay').style.display = 'flex';
+                    return; // Detiene el avance a cantidadInput
+                }
+                document.getElementById('cantidadInput').focus(); 
+            }
+        });
+        
         document.getElementById('cantidadInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') window.guardarDatos(); });
         document.getElementById('textoAviso').addEventListener('keydown', (e) => { if (e.key === 'Enter') window.enviarAviso(); });
         
-        // Listener para buscar imagen dando Enter en el input de la Modal
         document.getElementById('codigoModalInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') window.buscarImagenGoogle(); });
 
         document.addEventListener('contextmenu', e => e.preventDefault());
