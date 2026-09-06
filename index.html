@@ -140,7 +140,7 @@
         <div class="modal-caja">
             <h3>⚠️ Confirmación</h3>
             <p id="textoConfirmacion" style="margin-bottom: 20px; font-size: 16px; color: #333;"></p>
-            <button class="btn-guardar" onclick="ejecutarConfirmacion()" style="width: 100%; margin-bottom: 10px;">Sí, pedir</button>
+            <button class="btn-guardar" onclick="ejecutarConfirmacion()" style="width: 100%; margin-bottom: 10px;">Sí, seguro</button>
             <button class="btn-borrar" onclick="document.getElementById('modalConfirmacionOverlay').style.display='none'" style="width: 100%; padding: 10px; font-size: 14px;">Cancelar</button>
         </div>
     </div>
@@ -149,7 +149,7 @@
     <div id="modalErrorOverlay" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 1050; align-items: center; justify-content: center; backdrop-filter: blur(3px);">
         <div class="modal-caja">
             <h3>❌ Código no encontrado</h3>
-            <p style="margin-bottom: 20px; font-size: 16px; color: #333;">Este código no se encuentra en la plataforma.</p>
+            <p style="margin-bottom: 20px; font-size: 16px; color: #333;">Este código no se encuentra en la base de datos.</p>
             <button class="btn-borrar" onclick="cerrarModalError()" style="width: 100%; padding: 10px; font-size: 14px;">Aceptar</button>
         </div>
     </div>
@@ -305,8 +305,12 @@
         let callbackConfirmacion = null;
 
         window.mostrarModalConfirmacion = (cantidad, callback) => {
-            document.getElementById('textoConfirmacion').innerText = `¿Estás seguro de pedir ${cantidad} unidades?`;
+            document.getElementById('textoConfirmacion').innerHTML = `¿Estás seguro de pedir <strong style="color: #dc3545; font-size: 1.5em; background-color: #f8d7da; padding: 2px 8px; border-radius: 5px;">${cantidad}</strong> unidades de este código?`;
             document.getElementById('modalConfirmacionOverlay').style.display = 'flex';
+            
+            // Le pasamos el foco al botón para que el Enter funcione directamente aquí también
+            setTimeout(() => document.querySelector('#modalConfirmacionOverlay .btn-guardar').focus(), 10);
+            
             callbackConfirmacion = callback;
         };
 
@@ -328,6 +332,8 @@
             // NUEVA VALIDACIÓN: Bloquea si el código no está en la base de datos
             if (codigo !== "" && !mapaUbicaciones[codigo]) {
                 document.getElementById('modalErrorOverlay').style.display = 'flex';
+                // Focalizamos el botón de aceptar del modal para que con Enter se cierre correctamente
+                setTimeout(() => document.querySelector('#modalErrorOverlay button').focus(), 10);
                 return;
             }
 
@@ -492,6 +498,8 @@
                 const cod = document.getElementById('codigoInput').value.trim();
                 if (cod !== "" && !mapaUbicaciones[cod]) {
                     document.getElementById('modalErrorOverlay').style.display = 'flex';
+                    // Focalizamos el botón de aceptar del modal para que con Enter se cierre correctamente
+                    setTimeout(() => document.querySelector('#modalErrorOverlay button').focus(), 10);
                     return; // Detiene el avance a cantidadInput
                 }
                 document.getElementById('cantidadInput').focus(); 
