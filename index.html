@@ -86,12 +86,11 @@
 
     <div class="form-group">
         <div style="width: 100%; margin-bottom: 10px;">
-            <span id="statusDb">⏳ Sincronizando...</span>
+            <span id="statusDb" style="color: green;">✅ Base de datos conectada.</span>
             <span id="contadorPendientes">📋 Pendientes: 0</span>
         </div>
         <input type="text" id="nombreInput" placeholder="operador / check">
         
-        <!-- SE MODIFICARON LOS CAMPOS DE CÓDIGO Y CANTIDAD AQUÍ PARA BLOQUEAR NEGATIVOS -->
         <input type="number" id="codigoInput" placeholder="Código" min="0" onkeydown="if(['-','+','e',',','.'].includes(event.key)) event.preventDefault();" oninput="if(this.value < 0) this.value = ''; if(this.value.length > 6) this.value = this.value.slice(0, 6);">
         <input type="number" id="cantidadInput" placeholder="Cantidad" min="1" onkeydown="if(['-','+','e',',','.'].includes(event.key)) event.preventDefault();" oninput="if(this.value < 0) this.value = ''; if(this.value.length > 2) this.value = this.value.slice(0, 2);">
         
@@ -156,7 +155,7 @@
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js";
-        import { getFirestore, collection, addDoc, onSnapshot, orderBy, query, serverTimestamp, deleteDoc, doc, writeBatch, getDocs, limit, getDoc } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js";
+        import { getFirestore, collection, addDoc, onSnapshot, orderBy, query, serverTimestamp, deleteDoc, doc, writeBatch, getDocs, limit, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyCzZFPcSUPwWYIe4w3IW7pDluIchGMqWoU",
@@ -175,7 +174,7 @@
         const colHistorial = collection(db, "historial_total");
         const colAvisos = collection(db, "avisos");
 
-        let mapaUbicaciones = {};
+        let mapaUbicaciones = {}; // Caché local bajo demanda
 
         const nombreInput = document.getElementById('nombreInput');
         if (sessionStorage.getItem('tempNombre')) {
@@ -222,31 +221,14 @@
             if(snapshot.empty) {
                 contenedor.innerHTML = "<i>No hay novedades.</i>";
             } else {
-                snapshot.docs.forEach(docSnap => {
-                    contenedor.innerHTML += `
-                        <div class="aviso-item" style="justify-content: flex-start; gap: 10px;">
-                            <button class="btn-eliminar-aviso" onclick="borrarAvisoIndividual('${docSnap.id}')" title="Eliminar mensaje">🗑️</button>
-                            <span>📢 ${docSnap.data().mensaje}</span>
-                        </div>`;
-                });
+                // Optimizado el uso de map() y join('') para rendimiento del DOM
+                contenedor.innerHTML = snapshot.docs.map(docSnap => `
+                    <div class="aviso-item" style="justify-content: flex-start; gap: 10px;">
+                        <button class="btn-eliminar-aviso" onclick="borrarAvisoIndividual('${docSnap.id}')" title="Eliminar mensaje">🗑️</button>
+                        <span>📢 ${docSnap.data().mensaje}</span>
+                    </div>`).join('');
             }
         });
-
-        function escucharUbicacionesEnTiempoReal() {
-            const status = document.getElementById('statusDb');
-            onSnapshot(colUbicaciones, (querySnapshot) => {
-                mapaUbicaciones = {};
-                querySnapshot.forEach((doc) => { 
-                    mapaUbicaciones[doc.id] = doc.data().ubicacion; 
-                });
-                status.innerHTML = `✅ ${Object.keys(mapaUbicaciones).length} ubicaciones sincronizadas.`;
-                status.style.color = "green";
-            }, (error) => {
-                status.innerHTML = "❌ Error de conexión.";
-                status.style.color = "red";
-            });
-        }
-        escucharUbicacionesEnTiempoReal();
 
         // Lógica de Ventana Modal e Imagenes
         window.abrirModalImagen = () => {
@@ -329,12 +311,28 @@
             const codigo = codigoInput.value.trim();
             const cantidad = parseInt(cantidadInput.value, 10);
 
-            // NUEVA VALIDACIÓN: Bloquea si el código no está en la base de datos
-            if (codigo !== "" && !mapaUbicaciones[codigo]) {
-                document.getElementById('modalErrorOverlay').style.display = 'flex';
-                // Focalizamos el botón de aceptar del modal para que con Enter se cierre correctamente
-                setTimeout(() => document.querySelector('#modalErrorOverlay button').focus(), 10);
-                return;
+            // Fetch de ubicación bajo demanda si no está en la caché local
+            if (codigo !== "") {
+                if (!mapaUbicaciones[codigo]) {
+                    const status = document.getElementById('statusDb');
+                    status.innerHTML = "⏳ Consultando...";
+                    try {
+                        const docRef = doc(db, "ubicaciones_diarias", codigo);
+                        const docSnap = await getDoc(docRef);
+                        if (docSnap.exists()) {
+                            mapaUbicaciones[codigo] = docSnap.data().ubicacion;
+                            status.innerHTML = "✅ Base de datos conectada.";
+                        } else {
+                            status.innerHTML = "✅ Base de datos conectada.";
+                            document.getElementById('modalErrorOverlay').style.display = 'flex';
+                            setTimeout(() => document.querySelector('#modalErrorOverlay button').focus(), 10);
+                            return;
+                        }
+                    } catch (error) {
+                        status.innerHTML = "❌ Error de conexión.";
+                        return;
+                    }
+                }
             }
 
             const ubicacion = mapaUbicaciones[codigo];
@@ -435,18 +433,16 @@
             
             document.getElementById('contadorPendientes').innerText = `📋 Pendientes: ${snapshot.size}`;
             
-            let filasHTML = "";
-            
-            snapshot.docs.forEach(docSnap => {
+            // Optimizado con map() y join() para un solo redibujado en el DOM
+            const filasHTML = snapshot.docs.map(docSnap => {
                 const data = docSnap.data();
                 const fecha = data.timestamp ? data.timestamp.toDate().toLocaleString() : "...";
                 
-                // Si por alguna razón histórica quedó un registro de error, se mostrará, pero los nuevos ya no permitirán crearlo.
                 const esError = data.ubicacion === "No encontrado";
                 const claseFila = esError ? 'class="fila-error"' : '';
                 const claseTag = esError ? 'ubicacion-tag ubicacion-error' : 'ubicacion-tag';
 
-                filasHTML += `<tr ${claseFila}>
+                return `<tr ${claseFila}>
                     <td>${data.nombre}</td>
                     <td><strong>${data.codigo}</strong></td>
                     <td><span class="${claseTag}">${data.ubicacion}</span></td>
@@ -454,7 +450,7 @@
                     <td style="font-size: 11px;">${fecha}</td>
                     <td><button class="btn-borrar" onclick="borrarDato('${docSnap.id}', '${data.nombre}', '${data.codigo}')">Entregar</button></td>
                 </tr>`;
-            });
+            }).join('');
 
             tabla.innerHTML = filasHTML;
         });
@@ -468,13 +464,8 @@
                 const data = await fileInput.files[0].arrayBuffer();
                 const workbook = XLSX.read(data);
                 const jsonData = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
-                while (true) {
-                    const snap = await getDocs(query(colUbicaciones, limit(450)));
-                    if (snap.empty) break;
-                    const batchDel = writeBatch(db);
-                    snap.docs.forEach(d => batchDel.delete(d.ref));
-                    await batchDel.commit();
-                }
+                
+                // Optimización: Uso de setDoc con merge, evitamos borrar toda la base 450 por lote
                 for (let i = 0; i < jsonData.length; i += 400) {
                     const batchSubida = writeBatch(db);
                     jsonData.slice(i, i + 400).forEach(fila => {
@@ -482,7 +473,10 @@
                         const ubicacion = String(fila.ubicacion || fila.Caja || fila.Ubicacion || "").trim();
                         const descripcion = String(fila.Descripción || fila.Descripcion || fila.descripcion || "").trim();
                         
-                        if (codigo) batchSubida.set(doc(colUbicaciones, codigo), { ubicacion: ubicacion, descripcion: descripcion });
+                        if (codigo) {
+                            // Merge actualizará ubicaciones existentes o creará nuevas sin barrer la bd entera
+                            batchSubida.set(doc(colUbicaciones, codigo), { ubicacion: ubicacion, descripcion: descripcion }, { merge: true });
+                        }
                     });
                     await batchSubida.commit();
                 }
@@ -492,15 +486,31 @@
 
         nombreInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') document.getElementById('codigoInput').focus(); });
         
-        // NUEVA VALIDACIÓN: Al dar Enter en el código, revisa primero si existe en el mapa
-        document.getElementById('codigoInput').addEventListener('keydown', (e) => { 
+        // Búsqueda bajo demanda al presionar Enter en código
+        document.getElementById('codigoInput').addEventListener('keydown', async (e) => { 
             if (e.key === 'Enter') {
                 const cod = document.getElementById('codigoInput').value.trim();
-                if (cod !== "" && !mapaUbicaciones[cod]) {
-                    document.getElementById('modalErrorOverlay').style.display = 'flex';
-                    // Focalizamos el botón de aceptar del modal para que con Enter se cierre correctamente
-                    setTimeout(() => document.querySelector('#modalErrorOverlay button').focus(), 10);
-                    return; // Detiene el avance a cantidadInput
+                if (cod !== "") {
+                    const status = document.getElementById('statusDb');
+                    if (!mapaUbicaciones[cod]) {
+                        status.innerHTML = "⏳ Consultando...";
+                        try {
+                            const docRef = doc(db, "ubicaciones_diarias", cod);
+                            const docSnap = await getDoc(docRef);
+                            if (docSnap.exists()) {
+                                mapaUbicaciones[cod] = docSnap.data().ubicacion;
+                                status.innerHTML = "✅ Base de datos conectada.";
+                            } else {
+                                status.innerHTML = "✅ Base de datos conectada.";
+                                document.getElementById('modalErrorOverlay').style.display = 'flex';
+                                setTimeout(() => document.querySelector('#modalErrorOverlay button').focus(), 10);
+                                return; // Detiene el avance a cantidadInput
+                            }
+                        } catch (error) {
+                            status.innerHTML = "❌ Error de conexión.";
+                            return;
+                        }
+                    }
                 }
                 document.getElementById('cantidadInput').focus(); 
             }
