@@ -157,7 +157,7 @@
     <div id="modalLoginOverlay" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 1050; align-items: center; justify-content: center; backdrop-filter: blur(3px);">
         <div class="modal-caja">
             <h3>🔒 Acceso Restringido</h3>
-            <p style="font-size: 14px; margin-bottom: 15px; color: #555;">Ingrese las credenciales</p>
+            <p style="font-size: 14px; margin-bottom: 15px; color: #555;">Ingrese credenciales para descargar y limpiar memoria.</p>
             
             <input type="text" id="loginUsuario" placeholder="Usuario" style="width: 100%; margin-bottom: 10px; box-sizing: border-box; text-align: center; text-transform: lowercase;">
             <input type="password" id="loginClave" placeholder="Contraseña" style="width: 100%; margin-bottom: 15px; box-sizing: border-box; text-align: center;">
@@ -171,7 +171,8 @@
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js";
-        import { getFirestore, collection, addDoc, onSnapshot, orderBy, query, serverTimestamp, deleteDoc, doc, writeBatch, getDocs, limit, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js";
+        // IMPORTANTE: Se ha añadido startAfter a la lista de importaciones para la paginación.
+        import { getFirestore, collection, addDoc, onSnapshot, orderBy, query, serverTimestamp, deleteDoc, doc, writeBatch, getDocs, limit, getDoc, setDoc, startAfter } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyCzZFPcSUPwWYIe4w3IW7pDluIchGMqWoU",
@@ -237,7 +238,6 @@
             if(snapshot.empty) {
                 contenedor.innerHTML = "<i>No hay novedades.</i>";
             } else {
-                // Optimizado el uso de map() y join('') para rendimiento del DOM
                 contenedor.innerHTML = snapshot.docs.map(docSnap => `
                     <div class="aviso-item" style="justify-content: flex-start; gap: 10px;">
                         <button class="btn-eliminar-aviso" onclick="borrarAvisoIndividual('${docSnap.id}')" title="Eliminar mensaje">🗑️</button>
@@ -306,7 +306,6 @@
             document.getElementById('textoConfirmacion').innerHTML = `¿Estás seguro de pedir <strong style="color: #dc3545; font-size: 1.5em; background-color: #f8d7da; padding: 2px 8px; border-radius: 5px;">${cantidad}</strong> unidades de este código?`;
             document.getElementById('modalConfirmacionOverlay').style.display = 'flex';
             
-            // Le pasamos el foco al botón para que el Enter funcione directamente aquí también
             setTimeout(() => document.querySelector('#modalConfirmacionOverlay .btn-guardar').focus(), 10);
             
             callbackConfirmacion = callback;
@@ -327,7 +326,6 @@
             const codigo = codigoInput.value.trim();
             const cantidad = parseInt(cantidadInput.value, 10);
 
-            // Fetch de ubicación bajo demanda si no está en la caché local
             if (codigo !== "") {
                 if (!mapaUbicaciones[codigo]) {
                     const status = document.getElementById('statusDb');
@@ -358,7 +356,6 @@
             if (codigo.length > 6) return alert("El código no puede tener más de 6 dígitos.");
             if (cantidadInput.value.length > 2) return alert("La cantidad no puede tener más de 2 dígitos.");
 
-            // Si la cantidad es mayor a 9, muestra la ventana flotante en vez de guardar de inmediato
             if (cantidad > 9) {
                 window.mostrarModalConfirmacion(cantidad, () => {
                     procesarGuardado(nombre, codigo, cantidad, ubicacion, codigoInput, cantidadInput);
@@ -366,7 +363,6 @@
                 return; 
             }
 
-            // Si es 9 o menos, guarda normalmente
             procesarGuardado(nombre, codigo, cantidad, ubicacion, codigoInput, cantidadInput);
         }
 
@@ -406,39 +402,86 @@
             finally { btn.innerText = "🗑️ Limpiar Vista"; btn.disabled = false; }
         };
 
+        // LÓGICA DE PAGINACIÓN OCULTA IMPLEMENTADA AQUÍ
         window.descargarYLimpiarHistorial = async () => {
             const btn = document.querySelector('.btn-descargar');
             try {
-                btn.innerText = "⏳ Procesando...";
+                btn.innerText = "⏳ Extrayendo datos...";
                 btn.disabled = true;
-                const querySnapshot = await getDocs(query(colHistorial, orderBy("timestamp", "asc")));
-                if (querySnapshot.empty) {
+
+                let datosParaExcel = [];
+                let documentosABorrar = [];
+                let ultimoDocumento = null;
+                let hayMasDatos = true;
+                const limiteLote = 1000;
+
+                // Ciclo While para hacer consultas paginadas y no bloquear la memoria
+                while (hayMasDatos) {
+                    let q;
+                    if (ultimoDocumento) {
+                        q = query(colHistorial, orderBy("timestamp", "asc"), startAfter(ultimoDocumento), limit(limiteLote));
+                    } else {
+                        q = query(colHistorial, orderBy("timestamp", "asc"), limit(limiteLote));
+                    }
+
+                    const querySnapshot = await getDocs(q);
+
+                    if (querySnapshot.empty) {
+                        hayMasDatos = false;
+                        break;
+                    }
+
+                    querySnapshot.forEach((docSnap) => {
+                        const d = docSnap.data();
+                        datosParaExcel.push({
+                            "Nombre": d.nombre, "Codigo": d.codigo, "Ubicacion": d.ubicacion, "Cantidad": d.cantidad,
+                            "Fecha/Hora": d.timestamp ? d.timestamp.toDate().toLocaleString() : ""
+                        });
+                        documentosABorrar.push(docSnap.ref);
+                    });
+
+                    ultimoDocumento = querySnapshot.docs[querySnapshot.docs.length - 1];
+
+                    // Si la consulta trajo menos del límite, significa que es la última página
+                    if (querySnapshot.size < limiteLote) {
+                        hayMasDatos = false;
+                    }
+                }
+
+                if (datosParaExcel.length === 0) {
                     btn.innerText = "📥 Descargar reporte y liberar memoria";
                     btn.disabled = false;
-                    return alert("No hay datos.");
+                    return alert("No hay datos en el historial.");
                 }
-                const datosParaExcel = [];
-                querySnapshot.forEach((docSnap) => {
-                    const d = docSnap.data();
-                    datosParaExcel.push({
-                        "Nombre": d.nombre, "Codigo": d.codigo, "Ubicacion": d.ubicacion, "Cantidad": d.cantidad,
-                        "Fecha/Hora": d.timestamp ? d.timestamp.toDate().toLocaleString() : ""
-                    });
-                });
+
+                btn.innerText = "⏳ Generando Excel...";
                 const ws = XLSX.utils.json_to_sheet(datosParaExcel);
                 const wb = XLSX.utils.book_new();
                 XLSX.utils.book_append_sheet(wb, ws, "Reporte");
                 XLSX.writeFile(wb, `Reporte_Final_${new Date().getTime()}.xlsx`);
+
+                btn.innerText = "⏳ Borrando historial...";
                 let batch = writeBatch(db);
                 let count = 0;
-                for (const docSnap of querySnapshot.docs) {
-                    batch.delete(docSnap.ref);
+                
+                // Borrado por lotes asegurando que no exceda el límite de escritura de Firestore (450)
+                for (const ref of documentosABorrar) {
+                    batch.delete(ref);
                     count++;
-                    if (count === 450) { await batch.commit(); batch = writeBatch(db); count = 0; }
+                    if (count === 450) { 
+                        await batch.commit(); 
+                        batch = writeBatch(db); 
+                        count = 0; 
+                    }
                 }
                 if (count > 0) await batch.commit();
-            } catch (error) { alert("Error: " + error.message); }
-            finally { btn.innerText = "📥 Descargar reporte y liberar memoria"; btn.disabled = false; }
+
+            } catch (error) { 
+                alert("Error: " + error.message); 
+            } finally { 
+                btn.innerText = "📥 Descargar reporte y liberar memoria"; 
+                btn.disabled = false; 
+            }
         };
 
         window.borrarDato = async (id, nombre, codigo) => {
@@ -452,7 +495,6 @@
             
             document.getElementById('contadorPendientes').innerText = `📋 Pendientes: ${snapshot.size}`;
             
-            // Optimizado con map() y join() para un solo redibujado en el DOM
             const filasHTML = snapshot.docs.map(docSnap => {
                 const data = docSnap.data();
                 const fecha = data.timestamp ? data.timestamp.toDate().toLocaleString() : "...";
@@ -484,7 +526,6 @@
                 const workbook = XLSX.read(data);
                 const jsonData = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
                 
-                // Optimización: Uso de setDoc con merge, evitamos borrar toda la base 450 por lote
                 for (let i = 0; i < jsonData.length; i += 400) {
                     const batchSubida = writeBatch(db);
                     jsonData.slice(i, i + 400).forEach(fila => {
@@ -493,7 +534,6 @@
                         const descripcion = String(fila.Descripción || fila.Descripcion || fila.descripcion || "").trim();
                         
                         if (codigo) {
-                            // Merge actualizará ubicaciones existentes o creará nuevas sin barrer la bd entera
                             batchSubida.set(doc(colUbicaciones, codigo), { ubicacion: ubicacion, descripcion: descripcion }, { merge: true });
                         }
                     });
@@ -537,7 +577,6 @@
 
         nombreInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') document.getElementById('codigoInput').focus(); });
         
-        // Búsqueda bajo demanda al presionar Enter en código
         document.getElementById('codigoInput').addEventListener('keydown', async (e) => { 
             if (e.key === 'Enter') {
                 const cod = document.getElementById('codigoInput').value.trim();
@@ -555,7 +594,7 @@
                                 status.innerHTML = "✅ Base de datos conectada.";
                                 document.getElementById('modalErrorOverlay').style.display = 'flex';
                                 setTimeout(() => document.querySelector('#modalErrorOverlay button').focus(), 10);
-                                return; // Detiene el avance a cantidadInput
+                                return; 
                             }
                         } catch (error) {
                             status.innerHTML = "❌ Error de conexión.";
