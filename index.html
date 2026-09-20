@@ -67,6 +67,7 @@
     <div class="header-container">
         <h1>🖥️ Solicitud de código</h1>
         <div style="display: flex; gap: 10px; align-items: center;">
+            <span id="relojActual" style="font-size: 16px; font-weight: bold; color: #333; margin-right: 5px;"></span>
             <button onclick="abrirModalImagen()" class="btn-buscar-img">🖼️ Consultar Imagen</button>
             <a href="https://dashboard-de-picking.vercel.app/" target="_blank" class="btn-dashboard">📊 Ir al Dashboard</a>
         </div>
@@ -615,6 +616,14 @@
         document.addEventListener('keydown', e => {
             if (e.key === "F12" || (e.ctrlKey && (e.key === "u" || e.key === "s" || e.shiftKey && (e.key === "I" || e.key === "J")))) e.preventDefault();
         });
+        
+        // Reloj en tiempo real
+        setInterval(() => {
+            const relojElemento = document.getElementById('relojActual');
+            if(relojElemento) relojElemento.innerText = new Date().toLocaleTimeString('es-EC');
+        }, 1000);
+        document.getElementById('relojActual').innerText = new Date().toLocaleTimeString('es-EC');
+        
     </script>
 </body>
 </html>
