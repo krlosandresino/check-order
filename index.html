@@ -260,6 +260,7 @@
 
         window.cerrarModalError = () => {
             document.getElementById('modalErrorOverlay').style.display = 'none';
+            document.getElementById('codigoInput').value = '';
             document.getElementById('codigoInput').focus();
         };
 
@@ -327,60 +328,51 @@
             const codigo = codigoInput.value.trim();
             const cantidad = parseInt(cantidadInput.value, 10);
 
-            if (codigo !== "") {
-                if (!mapaUbicaciones[codigo]) {
-                    const status = document.getElementById('statusDb');
-                    status.innerHTML = "⏳ Consultando...";
-                    try {
-                        const docRef = doc(db, "ubicaciones_diarias", codigo);
-                        const docSnap = await getDoc(docRef);
-                        if (docSnap.exists()) {
-                            mapaUbicaciones[codigo] = docSnap.data().ubicacion;
-                            status.innerHTML = "✅ Base de datos conectada.";
-                        } else {
-                            status.innerHTML = "✅ Base de datos conectada.";
-                            document.getElementById('modalErrorOverlay').style.display = 'flex';
-                            setTimeout(() => document.querySelector('#modalErrorOverlay button').focus(), 10);
-                            return;
-                        }
-                    } catch (error) {
-                        status.innerHTML = "❌ Error de conexión.";
-                        return;
-                    }
-                }
-            }
-
-            const ubicacion = mapaUbicaciones[codigo];
-
             if (!nombre || !codigo || isNaN(cantidad)) return alert("Llena todos los campos.");
             if (cantidad <= 0) return alert("La cantidad debe ser mayor a cero.");
             if (codigo.length > 6) return alert("El código no puede tener más de 6 dígitos.");
             if (cantidadInput.value.length > 2) return alert("La cantidad no puede tener más de 2 dígitos.");
 
+            let ubicacion = mapaUbicaciones[codigo];
+
+            // Por si hacen clic directo en "+ Agregar" sin presionar Enter en el código
+            if (!ubicacion) {
+                try {
+                    const docSnap = await getDoc(doc(db, "ubicaciones_diarias", codigo));
+                    if (docSnap.exists()) {
+                        ubicacion = docSnap.data().ubicacion;
+                        mapaUbicaciones[codigo] = ubicacion;
+                    } else {
+                        document.getElementById('modalErrorOverlay').style.display = 'flex';
+                        setTimeout(() => document.querySelector('#modalErrorOverlay button').focus(), 10);
+                        return;
+                    }
+                } catch (error) { return alert("Error conectando a la base de datos."); }
+            }
+
             if (cantidad > 9) {
                 window.mostrarModalConfirmacion(cantidad, () => {
-                    procesarGuardado(nombre, codigo, cantidad, ubicacion, codigoInput, cantidadInput);
+                    procesarGuardadoSincrono(nombre, codigo, cantidad, ubicacion, codigoInput, cantidadInput);
                 });
                 return; 
             }
 
-            procesarGuardado(nombre, codigo, cantidad, ubicacion, codigoInput, cantidadInput);
-        }
+            procesarGuardadoSincrono(nombre, codigo, cantidad, ubicacion, codigoInput, cantidadInput);
+        };
 
-        const procesarGuardado = (nombre, codigo, cantidad, ubicacion, codigoInput, cantidadInput) => {
-            try {
-                const data = { nombre, codigo, cantidad, ubicacion, timestamp: serverTimestamp() };
-                
-                codigoInput.value = '';
-                cantidadInput.value = '';
-                codigoInput.focus(); 
+        const procesarGuardadoSincrono = (nombre, codigo, cantidad, ubicacion, codigoInput, cantidadInput) => {
+            const data = { nombre, codigo, cantidad, ubicacion, timestamp: serverTimestamp() };
+            
+            // Limpieza y salto instantáneo sin pausas
+            codigoInput.value = '';
+            cantidadInput.value = '';
+            codigoInput.focus(); 
 
-                Promise.all([
-                    addDoc(colRegistros, data),
-                    addDoc(colHistorial, data)
-                ]).catch(e => alert("Error al guardar en la nube: " + e.message));
-                
-            } catch (e) { alert("Error: " + e.message); }
+            // Se envía a Firebase en segundo plano sin interrumpir al usuario
+            Promise.all([
+                addDoc(colRegistros, data),
+                addDoc(colHistorial, data)
+            ]).catch(e => alert("Error al guardar: " + e.message));
         };
 
         window.limpiarTodoVista = async () => {
@@ -578,6 +570,7 @@
 
         nombreInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') document.getElementById('codigoInput').focus(); });
         
+        // Validación en el campo de código antes de pasar a cantidad
         document.getElementById('codigoInput').addEventListener('keydown', async (e) => { 
             if (e.key === 'Enter') {
                 const cod = document.getElementById('codigoInput').value.trim();
@@ -595,15 +588,16 @@
                                 status.innerHTML = "✅ Base de datos conectada.";
                                 document.getElementById('modalErrorOverlay').style.display = 'flex';
                                 setTimeout(() => document.querySelector('#modalErrorOverlay button').focus(), 10);
-                                return; 
+                                return; // Detiene el salto a cantidad
                             }
                         } catch (error) {
                             status.innerHTML = "❌ Error de conexión.";
-                            return;
+                            return; // Detiene el salto a cantidad si no hay internet
                         }
                     }
+                    // Salto a cantidad si pasó la prueba
+                    document.getElementById('cantidadInput').focus(); 
                 }
-                document.getElementById('cantidadInput').focus(); 
             }
         });
         
