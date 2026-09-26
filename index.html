@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>🖥️ Check Order</title>
+    <!-- Se mantiene el script original de SheetJS aquí para no romper la carga -->
     <script src="https://cdn.sheetjs.com/xlsx-0.19.3/package/dist/xlsx.full.min.js"></script>
     <style>
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 1000px; margin: 0 auto; padding: 20px; background-color: #f0f2f5; }
@@ -60,6 +61,10 @@
         #modalImagenOverlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 1000; align-items: center; justify-content: center; backdrop-filter: blur(3px); }
         .modal-caja { background: white; padding: 25px; border-radius: 10px; width: 320px; box-shadow: 0 5px 15px rgba(0,0,0,0.3); text-align: center; }
         .modal-caja h3 { margin-top: 0; color: #333; margin-bottom: 15px; }
+        @keyframes animacionMensajeFlotante { 
+            0% { transform: translateX(120%); opacity: 0; } 
+            100% { transform: translateX(0); opacity: 1; } 
+        }
     </style>
 </head>
 <body>
@@ -87,6 +92,15 @@
 
     <div style="text-align: center; font-size: 12px; color: #999; margin-top: -10px; margin-bottom: 10px; font-weight: 600; user-select: none;">
         © 2026 Desarrollado por Carlos Burgos
+    </div>
+
+    <!-- Contenedor Flotante de Instrucciones Directas (Lado Derecho) -->
+    <div id="contenedorMensajeDirecto" style="display: none; position: absolute; top: 110px; right: 20px; background: #fff3cd; border-left: 6px solid #ffc107; padding: 15px 20px; border-radius: 8px; box-shadow: 0 6px 15px rgba(0,0,0,0.25); z-index: 999; width: 280px; animation: animacionMensajeFlotante 0.5s ease-out forwards;">
+        <h4 style="margin: 0 0 10px 0; color: #856404; font-size: 16px; display: flex; align-items: center; gap: 8px;">
+            📩 !Mensaje recibido!
+        </h4>
+        <p id="textoMensajeDirecto" style="margin: 0 0 15px 0; font-size: 15px; color: #333; line-height: 1.4; font-weight: 500;"></p>
+        <button onclick="cerrarMensajeDirecto()" style="background: #ffc107; color: #856404; border: none; padding: 8px 12px; border-radius: 4px; font-weight: bold; cursor: pointer; width: 100%; font-size: 14px; transition: opacity 0.2s;">Aceptar, cerrar pantalla</button>
     </div>
 
     <div class="form-group">
@@ -175,8 +189,8 @@
     </div>
 
     <script type="module">
+        // IMPORTANTE: Se ha revertido a la importación 100% original de la versión 9.6.1 sin funciones incompatibles
         import { initializeApp } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js";
-        // IMPORTANTE: Se ha añadido startAfter a la lista de importaciones para la paginación.
         import { getFirestore, collection, addDoc, onSnapshot, orderBy, query, serverTimestamp, deleteDoc, doc, writeBatch, getDocs, limit, getDoc, setDoc, startAfter } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js";
 
         const firebaseConfig = {
@@ -195,10 +209,22 @@
         const colUbicaciones = collection(db, "ubicaciones_diarias");
         const colHistorial = collection(db, "historial_total");
         const colAvisos = collection(db, "avisos");
+        const colMensajesDirectos = collection(db, "mensajes_directos");
 
-        let mapaUbicaciones = {}; // Caché local bajo demanda
+        // Optimización Segura: Caché de ubicaciones para que no consulte a Firebase si ya buscó ese código antes
+        const CACHE_KEY = "checkMapaUbicaciones";
+        let mapaUbicaciones = {};
+        const cacheGuardada = localStorage.getItem(CACHE_KEY);
+        if (cacheGuardada) {
+            try { mapaUbicaciones = JSON.parse(cacheGuardada); } catch(e) {}
+        }
+        const guardarCacheLocal = () => {
+            localStorage.setItem(CACHE_KEY, JSON.stringify(mapaUbicaciones));
+        };
 
-        // NUEVO: Variable y función para mantener el conteo en pantalla
+        let mensajesDirectosPendientes = [];
+        let idMensajeMostradoActual = null;
+
         let totalProductos = 0;
         const actualizarStatusDb = (mensaje = null) => {
             const status = document.getElementById('statusDb');
@@ -209,7 +235,7 @@
             }
         };
 
-        // NUEVO: Ejecutar el conteo al cargar la página
+        // Se ha revertido a la función original que funciona perfecto con Firebase 9.6.1
         actualizarStatusDb("⏳ Contando productos...");
         getDocs(colUbicaciones).then(snapshot => {
             totalProductos = snapshot.size;
@@ -225,7 +251,54 @@
         }
         nombreInput.addEventListener('input', (e) => {
             sessionStorage.setItem('tempNombre', e.target.value);
+            window.verificarMensajesParaOperador(); 
         });
+
+        // Escuchar mensajes directos desde el Dashboard
+        onSnapshot(query(colMensajesDirectos, orderBy("timestamp", "asc")), (snapshot) => {
+            mensajesDirectosPendientes = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            window.verificarMensajesParaOperador();
+        });
+
+        window.verificarMensajesParaOperador = () => {
+            const nombreActual = nombreInput.value.trim().toUpperCase();
+            const contenedor = document.getElementById('contenedorMensajeDirecto');
+            
+            if (!nombreActual) {
+                contenedor.style.display = 'none';
+                idMensajeMostradoActual = null;
+                return;
+            }
+
+            const mensajeParaMi = mensajesDirectosPendientes.find(m => m.destinatario === nombreActual);
+            
+            if (mensajeParaMi) {
+                document.getElementById('textoMensajeDirecto').innerText = mensajeParaMi.mensaje;
+                contenedor.style.display = 'block';
+                idMensajeMostradoActual = mensajeParaMi.id;
+            } else {
+                contenedor.style.display = 'none';
+                idMensajeMostradoActual = null;
+            }
+        };
+
+        window.cerrarMensajeDirecto = async () => {
+            if (idMensajeMostradoActual) {
+                const btn = document.querySelector('#contenedorMensajeDirecto button');
+                btn.innerText = "Cerrando...";
+                btn.disabled = true;
+                try {
+                    await deleteDoc(doc(db, "mensajes_directos", idMensajeMostradoActual));
+                    document.getElementById('contenedorMensajeDirecto').style.display = 'none';
+                    idMensajeMostradoActual = null;
+                } catch (error) {
+                    alert("Error al confirmar: " + error.message);
+                } finally {
+                    btn.innerText = "Entendido, cerrar orden";
+                    btn.disabled = false;
+                }
+            }
+        };
 
         window.enviarAviso = async () => {
             const input = document.getElementById('textoAviso');
@@ -272,7 +345,6 @@
             }
         });
 
-        // Lógica de Ventana Modal e Imagenes
         window.abrirModalImagen = () => {
             document.getElementById('modalImagenOverlay').style.display = 'flex';
             document.getElementById('codigoModalInput').focus();
@@ -326,7 +398,6 @@
             }
         };
 
-        // Lógica de validación flotante
         let callbackConfirmacion = null;
 
         window.mostrarModalConfirmacion = (cantidad, callback) => {
@@ -360,13 +431,13 @@
 
             let ubicacion = mapaUbicaciones[codigo];
 
-            // Por si hacen clic directo en "+ Agregar" sin presionar Enter en el código
             if (!ubicacion) {
                 try {
                     const docSnap = await getDoc(doc(db, "ubicaciones_diarias", codigo));
                     if (docSnap.exists()) {
                         ubicacion = docSnap.data().ubicacion;
                         mapaUbicaciones[codigo] = ubicacion;
+                        guardarCacheLocal(); // Actualiza caché
                     } else {
                         document.getElementById('modalErrorOverlay').style.display = 'flex';
                         setTimeout(() => document.querySelector('#modalErrorOverlay button').focus(), 10);
@@ -388,12 +459,10 @@
         const procesarGuardadoSincrono = (nombre, codigo, cantidad, ubicacion, codigoInput, cantidadInput) => {
             const data = { nombre, codigo, cantidad, ubicacion, timestamp: serverTimestamp() };
             
-            // Limpieza y salto instantáneo sin pausas
             codigoInput.value = '';
             cantidadInput.value = '';
             codigoInput.focus(); 
 
-            // Se envía a Firebase en segundo plano sin interrumpir al usuario
             Promise.all([
                 addDoc(colRegistros, data),
                 addDoc(colHistorial, data)
@@ -420,7 +489,6 @@
             finally { btn.innerText = "🗑️ Limpiar Vista"; btn.disabled = false; }
         };
 
-        // LÓGICA DE PAGINACIÓN OCULTA IMPLEMENTADA AQUÍ
         window.descargarYLimpiarHistorial = async () => {
             const btn = document.querySelector('.btn-descargar');
             try {
@@ -433,7 +501,6 @@
                 let hayMasDatos = true;
                 const limiteLote = 1000;
 
-                // Ciclo While para hacer consultas paginadas y no bloquear la memoria
                 while (hayMasDatos) {
                     let q;
                     if (ultimoDocumento) {
@@ -460,7 +527,6 @@
 
                     ultimoDocumento = querySnapshot.docs[querySnapshot.docs.length - 1];
 
-                    // Si la consulta trajo menos del límite, significa que es la última página
                     if (querySnapshot.size < limiteLote) {
                         hayMasDatos = false;
                     }
@@ -482,7 +548,6 @@
                 let batch = writeBatch(db);
                 let count = 0;
                 
-                // Borrado por lotes asegurando que no exceda el límite de escritura de Firestore (450)
                 for (const ref of documentosABorrar) {
                     batch.delete(ref);
                     count++;
@@ -534,7 +599,6 @@
             tabla.innerHTML = filasHTML;
         });
 
-        // NUEVA LÓGICA OPTIMIZADA DE COMPARACIÓN Y SUBIDA DE EXCEL
         window.procesarYSubirExcel = async () => {
             const fileInput = document.getElementById('excelInput');
             const progreso = document.getElementById('progresoCarga');
@@ -543,7 +607,6 @@
             try {
                 progreso.innerText = "⏳ Consultando ubicaciones actuales en la nube...";
                 
-                // 1. Obtener los datos actuales de Firebase para comparar
                 const querySnapshot = await getDocs(colUbicaciones);
                 const datosActuales = {};
                 querySnapshot.forEach(docSnap => {
@@ -555,7 +618,6 @@
                 const workbook = XLSX.read(data);
                 const jsonData = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
                 
-                // 2. Arreglo para almacenar SOLO los códigos que sufrieron cambios o son nuevos
                 let operacionesBatch = []; 
                 
                 jsonData.forEach(fila => {
@@ -566,7 +628,6 @@
                     if (codigo) {
                         const actual = datosActuales[codigo];
                         
-                        // 3. LÓGICA DE COMPARACIÓN:
                         if (!actual || actual.ubicacion !== ubicacion || actual.descripcion !== descripcion) {
                             operacionesBatch.push({
                                 codigo: codigo,
@@ -583,7 +644,6 @@
 
                 progreso.innerText = `⏳ Subiendo ${operacionesBatch.length} actualizaciones a la nube...`;
 
-                // 4. Subir ÚNICAMENTE los cambios agrupados en lotes de 400
                 for (let i = 0; i < operacionesBatch.length; i += 400) {
                     const batchSubida = writeBatch(db);
                     operacionesBatch.slice(i, i + 400).forEach(op => {
@@ -594,12 +654,14 @@
                 
                 progreso.innerText = `✅ ¡Listo! Se actualizaron ${operacionesBatch.length} códigos correctamente.`;
                 
+                localStorage.removeItem(CACHE_KEY); // Borrar caché al subir Excel nuevo
+                mapaUbicaciones = {};
+
             } catch (error) { 
                 progreso.innerText = "❌ Error: " + error.message; 
             }
         };
 
-        // Lógica de Ventana Modal Login para Descarga
         window.abrirModalLogin = () => {
             document.getElementById('modalLoginOverlay').style.display = 'flex';
             document.getElementById('loginUsuario').value = '';
@@ -631,9 +693,9 @@
             if (e.key === 'Enter') window.verificarLogin(); 
         });
 
+        // Eventos de teclado restaurados exactamente como estaban en la versión original
         nombreInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') document.getElementById('codigoInput').focus(); });
         
-        // Validación en el campo de código antes de pasar a cantidad
         document.getElementById('codigoInput').addEventListener('keydown', async (e) => { 
             if (e.key === 'Enter') {
                 const cod = document.getElementById('codigoInput').value.trim();
@@ -645,19 +707,19 @@
                             const docSnap = await getDoc(docRef);
                             if (docSnap.exists()) {
                                 mapaUbicaciones[cod] = docSnap.data().ubicacion;
-                                actualizarStatusDb(); // Restaura el mensaje con el total
+                                guardarCacheLocal(); // Registrar en caché de Inmediato
+                                actualizarStatusDb();
                             } else {
-                                actualizarStatusDb(); // Restaura el mensaje con el total
+                                actualizarStatusDb();
                                 document.getElementById('modalErrorOverlay').style.display = 'flex';
                                 setTimeout(() => document.querySelector('#modalErrorOverlay button').focus(), 10);
-                                return; // Detiene el salto a cantidad
+                                return;
                             }
                         } catch (error) {
                             actualizarStatusDb("❌ Error de conexión.");
-                            return; // Detiene el salto a cantidad si no hay internet
+                            return; 
                         }
                     }
-                    // Salto a cantidad si pasó la prueba
                     document.getElementById('cantidadInput').focus(); 
                 }
             }
@@ -665,7 +727,6 @@
         
         document.getElementById('cantidadInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') window.guardarDatos(); });
         document.getElementById('textoAviso').addEventListener('keydown', (e) => { if (e.key === 'Enter') window.enviarAviso(); });
-        
         document.getElementById('codigoModalInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') window.buscarImagenGoogle(); });
 
         document.addEventListener('contextmenu', e => e.preventDefault());
@@ -673,7 +734,6 @@
             if (e.key === "F12" || (e.ctrlKey && (e.key === "u" || e.key === "s" || e.shiftKey && (e.key === "I" || e.key === "J")))) e.preventDefault();
         });
         
-        // Reloj en tiempo real
         setInterval(() => {
             const relojElemento = document.getElementById('relojActual');
             if(relojElemento) relojElemento.innerText = new Date().toLocaleTimeString('es-EC');
