@@ -198,6 +198,27 @@
 
         let mapaUbicaciones = {}; // Caché local bajo demanda
 
+        // NUEVO: Variable y función para mantener el conteo en pantalla
+        let totalProductos = 0;
+        const actualizarStatusDb = (mensaje = null) => {
+            const status = document.getElementById('statusDb');
+            if (mensaje) {
+                status.innerHTML = mensaje;
+            } else {
+                status.innerHTML = `✅ Base cargada: ${totalProductos} productos disponibles.`;
+            }
+        };
+
+        // NUEVO: Ejecutar el conteo al cargar la página
+        actualizarStatusDb("⏳ Contando productos...");
+        getDocs(colUbicaciones).then(snapshot => {
+            totalProductos = snapshot.size;
+            actualizarStatusDb();
+        }).catch(error => {
+            console.error("Error obteniendo total:", error);
+            actualizarStatusDb("✅ Base de datos conectada.");
+        });
+
         const nombreInput = document.getElementById('nombreInput');
         if (sessionStorage.getItem('tempNombre')) {
             nombreInput.value = sessionStorage.getItem('tempNombre');
@@ -617,23 +638,22 @@
             if (e.key === 'Enter') {
                 const cod = document.getElementById('codigoInput').value.trim();
                 if (cod !== "") {
-                    const status = document.getElementById('statusDb');
                     if (!mapaUbicaciones[cod]) {
-                        status.innerHTML = "⏳ Consultando...";
+                        actualizarStatusDb("⏳ Consultando...");
                         try {
                             const docRef = doc(db, "ubicaciones_diarias", cod);
                             const docSnap = await getDoc(docRef);
                             if (docSnap.exists()) {
                                 mapaUbicaciones[cod] = docSnap.data().ubicacion;
-                                status.innerHTML = "✅ Base de datos conectada.";
+                                actualizarStatusDb(); // Restaura el mensaje con el total
                             } else {
-                                status.innerHTML = "✅ Base de datos conectada.";
+                                actualizarStatusDb(); // Restaura el mensaje con el total
                                 document.getElementById('modalErrorOverlay').style.display = 'flex';
                                 setTimeout(() => document.querySelector('#modalErrorOverlay button').focus(), 10);
                                 return; // Detiene el salto a cantidad
                             }
                         } catch (error) {
-                            status.innerHTML = "❌ Error de conexión.";
+                            actualizarStatusDb("❌ Error de conexión.");
                             return; // Detiene el salto a cantidad si no hay internet
                         }
                     }
