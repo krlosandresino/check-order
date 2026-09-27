@@ -260,7 +260,8 @@
             window.verificarMensajesParaOperador();
         });
 
-        window.verificarMensajesParaOperador = () => {
+        // MODIFICACIÓN: Lógica de caducidad automática para evitar mensajes fantasma
+        window.verificarMensajesParaOperador = async () => {
             const nombreActual = nombreInput.value.trim().toUpperCase();
             const contenedor = document.getElementById('contenedorMensajeDirecto');
             
@@ -273,6 +274,26 @@
             const mensajeParaMi = mensajesDirectosPendientes.find(m => m.destinatario === nombreActual);
             
             if (mensajeParaMi) {
+                // --- INICIO: Comprobación de caducidad (60 minutos) ---
+                if (mensajeParaMi.timestamp) {
+                    const ahora = Date.now();
+                    const tiempoMensaje = mensajeParaMi.timestamp.toMillis();
+                    const diferenciaMinutos = (ahora - tiempoMensaje) / (1000 * 60);
+
+                    if (diferenciaMinutos > 60) {
+                        // El mensaje caducó. Se elimina silenciosamente de la base de datos.
+                        try {
+                            await deleteDoc(doc(db, "mensajes_directos", mensajeParaMi.id));
+                        } catch (error) {
+                            console.error("Error limpiando mensaje fantasma:", error);
+                        }
+                        contenedor.style.display = 'none';
+                        idMensajeMostradoActual = null;
+                        return; // Se detiene la ejecución para que no se muestre el contenedor
+                    }
+                }
+                // --- FIN: Comprobación de caducidad ---
+
                 document.getElementById('textoMensajeDirecto').innerText = mensajeParaMi.mensaje;
                 contenedor.style.display = 'block';
                 idMensajeMostradoActual = mensajeParaMi.id;
