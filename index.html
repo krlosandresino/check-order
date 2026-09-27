@@ -65,6 +65,10 @@
             0% { transform: translateX(120%); opacity: 0; } 
             100% { transform: translateX(0); opacity: 1; } 
         }
+        @keyframes resplandorAlerta {
+            0% { box-shadow: 0 6px 15px rgba(0,0,0,0.25); }
+            100% { box-shadow: 0 6px 15px rgba(0,0,0,0.25), 0 0 20px rgba(255, 193, 7, 0.9); }
+        }
     </style>
 </head>
 <body>
@@ -94,9 +98,9 @@
         © 2026 Desarrollado por Carlos Burgos
     </div>
 
-    <!-- Contenedor Flotante de Instrucciones Directas (Lado Derecho) -->
-    <div id="contenedorMensajeDirecto" style="display: none; position: absolute; top: 110px; right: 20px; background: #fff3cd; border-left: 6px solid #ffc107; padding: 15px 20px; border-radius: 8px; box-shadow: 0 6px 15px rgba(0,0,0,0.25); z-index: 999; width: 280px; animation: animacionMensajeFlotante 0.5s ease-out forwards;">
-        <h4 style="margin: 0 0 10px 0; color: #856404; font-size: 16px; display: flex; align-items: center; gap: 8px;">
+    <!-- Contenedor Flotante de Instrucciones Directas (Lado Derecho) con animación combinada -->
+    <div id="contenedorMensajeDirecto" style="display: none; position: absolute; top: 110px; right: 20px; background: #fff3cd; border-left: 6px solid #ffc107; padding: 15px 20px; border-radius: 8px; box-shadow: 0 6px 15px rgba(0,0,0,0.25); z-index: 999; width: 280px; animation: animacionMensajeFlotante 0.5s ease-out forwards, resplandorAlerta 1.2s infinite alternate 0.5s;">
+        <h4 id="tituloMensajeDirecto" style="margin: 0 0 10px 0; color: #856404; font-size: 16px; display: flex; align-items: center; gap: 8px;">
             📩 !Mensaje recibido!
         </h4>
         <p id="textoMensajeDirecto" style="margin: 0 0 15px 0; font-size: 15px; color: #333; line-height: 1.4; font-weight: 500;"></p>
@@ -294,6 +298,7 @@
                 }
                 // --- FIN: Comprobación de caducidad ---
 
+                document.getElementById('tituloMensajeDirecto').innerHTML = `${nombreActual}, !Mensaje recibido! 📩`;
                 document.getElementById('textoMensajeDirecto').innerText = mensajeParaMi.mensaje;
                 contenedor.style.display = 'block';
                 idMensajeMostradoActual = mensajeParaMi.id;
