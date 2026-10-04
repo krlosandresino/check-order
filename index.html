@@ -98,7 +98,7 @@
             <p style="font-size: 13px; margin-bottom: 10px;">⚠️ Al subir, se reemplazarán y actualizarán solo los códigos con cambios.</p>
             <input type="file" id="excelInput" accept=".xlsx, .xls" style="max-width: 100%;">
             <br>
-            <button class="btn-admin" onclick="procesarYSubirExcel()">☁️ Cargar y Actualizar Todo</button>
+            <button class="btn-admin" onclick="procesarYSubirExcel()">☁️️ Cargar y Actualizar Todo</button>
             <div id="progresoCarga" style="margin-top: 10px; font-weight: bold; color: #007bff;"></div>
         </div>
     </details>
@@ -248,8 +248,21 @@
         const colMensajesDirectos = collection(db, "mensajes_directos");
 
         // --- SISTEMA DE GESTIÓN DE NOMBRES ---
-        let nombresOperadores = JSON.parse(localStorage.getItem('nombresOperadores')) || ["YURI", "MIGUEL", "ANTONIO"];
-        nombresOperadores.sort(); // <-- Ordena A-Z al cargar
+        let nombresOperadores = [];
+
+        // Escuchar cambios en tiempo real desde Firebase
+        onSnapshot(doc(db, "configuracion", "operadores"), (docSnap) => {
+            if (docSnap.exists() && docSnap.data().lista) {
+                nombresOperadores = docSnap.data().lista;
+            } else {
+                nombresOperadores = ["YURI", "MIGUEL", "ANTONIO"]; // Default si no existe la colección aún
+            }
+            nombresOperadores.sort(); // <-- Ordena A-Z
+            
+            // Actualizar la interfaz si los modales están abiertos
+            renderizarNombresSeleccion();
+            renderizarNombresGestion();
+        });
 
         window.abrirModalNombres = () => {
             renderizarNombresSeleccion();
@@ -271,9 +284,11 @@
 
         const renderizarNombresSeleccion = () => {
             const contenedor = document.getElementById('listaNombresSeleccion');
-            contenedor.innerHTML = nombresOperadores.map(n =>
-                `<button class="btn-guardar" style="width: 100%; padding: 10px; font-size: 14px; background-color: #007bff; word-break: break-word;" onclick="seleccionarNombre('${n}')">${n}</button>`
-            ).join('');
+            if (contenedor) {
+                contenedor.innerHTML = nombresOperadores.map(n =>
+                    `<button class="btn-guardar" style="width: 100%; padding: 10px; font-size: 14px; background-color: #007bff; word-break: break-word;" onclick="seleccionarNombre('${n}')">${n}</button>`
+                ).join('');
+            }
         };
 
         window.abrirModalGestionNombres = () => {
@@ -287,24 +302,36 @@
             document.getElementById('nuevoNombreInput').value = '';
         };
 
-        window.agregarNombre = () => {
+        window.agregarNombre = async () => {
             const nuevo = document.getElementById('nuevoNombreInput').value.trim().toUpperCase();
             if(nuevo && !nombresOperadores.includes(nuevo)) {
-                nombresOperadores.push(nuevo);
-                nombresOperadores.sort(); // <-- Ordena A-Z al agregar
-                localStorage.setItem('nombresOperadores', JSON.stringify(nombresOperadores));
-                renderizarNombresGestion();
-                document.getElementById('nuevoNombreInput').value = '';
-                document.getElementById('nuevoNombreInput').focus();
+                const nuevaLista = [...nombresOperadores, nuevo];
+                nuevaLista.sort();
+                
+                try {
+                    // Guarda la lista en Firebase
+                    await setDoc(doc(db, "configuracion", "operadores"), { lista: nuevaLista }, { merge: true });
+                    document.getElementById('nuevoNombreInput').value = '';
+                    document.getElementById('nuevoNombreInput').focus();
+                } catch (error) {
+                    alert("Error al guardar en la nube: " + error.message);
+                }
             } else if (nombresOperadores.includes(nuevo)) {
                 alert("El nombre ya existe en la lista.");
             }
         };
 
-        window.eliminarNombre = (index) => {
-            nombresOperadores.splice(index, 1);
-            localStorage.setItem('nombresOperadores', JSON.stringify(nombresOperadores));
-            renderizarNombresGestion();
+        window.eliminarNombre = async (index) => {
+            if (!confirm("¿Desea eliminar este operador?")) return;
+            const nuevaLista = [...nombresOperadores];
+            nuevaLista.splice(index, 1);
+            
+            try {
+                // Elimina el elemento subiendo la nueva lista a Firebase
+                await setDoc(doc(db, "configuracion", "operadores"), { lista: nuevaLista }, { merge: true });
+            } catch (error) {
+                alert("Error al eliminar en la nube: " + error.message);
+            }
         };
 
         const renderizarNombresGestion = () => {
@@ -312,12 +339,14 @@
             const contador = document.getElementById('contadorOperadores');
             if (contador) contador.innerText = `(${nombresOperadores.length})`;
 
-            contenedor.innerHTML = nombresOperadores.map((n, index) =>
-                `<div style="display: flex; justify-content: space-between; align-items: center; padding: 8px; background: white; border: 1px solid #ccc; border-radius: 4px;">
-                    <span style="font-weight: bold; color: #333; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-right: 4px;" title="${n}">${n}</span>
-                    <button class="btn-borrar" onclick="eliminarNombre(${index})" style="padding: 4px 6px; font-size: 11px; margin: 0; min-width: 65px;">❌ Eliminar</button>
-                </div>`
-            ).join('');
+            if (contenedor) {
+                contenedor.innerHTML = nombresOperadores.map((n, index) =>
+                    `<div style="display: flex; justify-content: space-between; align-items: center; padding: 8px; background: white; border: 1px solid #ccc; border-radius: 4px;">
+                        <span style="font-weight: bold; color: #333; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-right: 4px;" title="${n}">${n}</span>
+                        <button class="btn-borrar" onclick="eliminarNombre(${index})" style="padding: 4px 6px; font-size: 11px; margin: 0; min-width: 65px;">❌ Eliminar</button>
+                    </div>`
+                ).join('');
+            }
         };
         // -------------------------------------
 
