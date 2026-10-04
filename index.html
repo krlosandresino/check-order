@@ -95,10 +95,10 @@
         <summary>⚙️ Panel de Actualización de Ubicaciones</summary>
         <div class="admin-content">
             <h3>Cargar Base de Datos de Ubicaciones</h3>
-            <p style="font-size: 13px; margin-bottom: 10px;">⚠️ Al subir, se reemplazarán y actualizarán solo los códigos con cambios.</p>
+            <p style="font-size: 13px; margin-bottom: 10px;">⚠️️ Al subir, se reemplazarán y actualizarán solo los códigos con cambios.</p>
             <input type="file" id="excelInput" accept=".xlsx, .xls" style="max-width: 100%;">
             <br>
-            <button class="btn-admin" onclick="procesarYSubirExcel()">☁️️ Cargar y Actualizar Todo</button>
+            <button class="btn-admin" onclick="procesarYSubirExcel()">☁ Cargar y Actualizar Todo</button>
             <div id="progresoCarga" style="margin-top: 10px; font-weight: bold; color: #007bff;"></div>
         </div>
     </details>
@@ -250,12 +250,12 @@
         // --- SISTEMA DE GESTIÓN DE NOMBRES ---
         let nombresOperadores = [];
 
-        // Escuchar cambios en tiempo real desde Firebase
+        // Escuchar cambios en tiempo real desde Firebase (Cero LocalStorage)
         onSnapshot(doc(db, "configuracion", "operadores"), (docSnap) => {
             if (docSnap.exists() && docSnap.data().lista) {
                 nombresOperadores = docSnap.data().lista;
             } else {
-                nombresOperadores = ["YURI", "MIGUEL", "ANTONIO"]; // Default si no existe la colección aún
+                nombresOperadores = []; // Si no hay datos en Firebase, la lista queda totalmente vacía
             }
             nombresOperadores.sort(); // <-- Ordena A-Z
             
