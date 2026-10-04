@@ -17,7 +17,7 @@
         summary:hover { background: #ced4da; }
         .admin-content { padding: 20px; text-align: center; border-top: 1px solid #ccc; }
         input { padding: 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 16px; }
-        #nombreInput { flex: 2; min-width: 200px; background-color: #f8f9fa; text-transform: uppercase; }
+        #nombreInput { flex: 2; min-width: 200px; background-color: #f8f9fa; text-transform: uppercase; cursor: pointer; }
         #codigoInput { flex: 1; min-width: 120px; }
         #cantidadInput { flex: 1; min-width: 100px; }
         button { padding: 12px 25px; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; color: white; transition: 0.2s; }
@@ -57,7 +57,8 @@
             100% { background-color: #ffffff; }
         }
 
-        /* Estilos de la ventana Modal para Consultar Imagen */
+        /* Estilos de la ventana Modal para Consultar Imagen y otras */
+        .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 1000; align-items: center; justify-content: center; backdrop-filter: blur(3px); }
         #modalImagenOverlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 1000; align-items: center; justify-content: center; backdrop-filter: blur(3px); }
         .modal-caja { background: white; padding: 25px; border-radius: 10px; width: 320px; box-shadow: 0 5px 15px rgba(0,0,0,0.3); text-align: center; }
         .modal-caja h3 { margin-top: 0; color: #333; margin-bottom: 15px; }
@@ -120,7 +121,9 @@
             <span id="statusDb" style="color: green;">✅ Base de datos conectada.</span>
             <span id="contadorPendientes">📋 Pendientes: 0</span>
         </div>
-        <input type="text" id="nombreInput" placeholder="operador / check">
+        
+        <!-- Campo de operador modificado: solo lectura y con evento click -->
+        <input type="text" id="nombreInput" placeholder="operador / check" readonly onclick="abrirModalNombres()">
         
         <input type="number" id="codigoInput" placeholder="Código" min="0" onkeydown="if(['-','+','e',',','.'].includes(event.key)) event.preventDefault();" oninput="if(this.value < 0) this.value = ''; if(this.value.length > 6) this.value = this.value.slice(0, 6);">
         <input type="number" id="cantidadInput" placeholder="Cantidad" min="1" onkeydown="if(['-','+','e',',','.'].includes(event.key)) event.preventDefault();" oninput="if(this.value < 0) this.value = ''; if(this.value.length > 2) this.value = this.value.slice(0, 2);">
@@ -155,6 +158,28 @@
         <tbody id="tablaCuerpo"></tbody>
     </table>
 
+    <!-- Ventana Modal para Elegir Nombre (Ajustada a 2 columnas) -->
+    <div id="modalNombresOverlay" class="modal-overlay" style="z-index: 1050;">
+        <div class="modal-caja" style="width: 380px;">
+            <h3>👤 Seleccionar Operador</h3>
+            <div id="listaNombresSeleccion" style="max-height: 300px; overflow-y: auto; margin-bottom: 15px; display: grid; grid-template-columns: 1fr 1fr; gap: 8px;"></div>
+            <button class="btn-borrar" onclick="cerrarModalNombres()" style="width: 100%; padding: 10px; font-size: 14px;">Cancelar</button>
+        </div>
+    </div>
+
+    <!-- Ventana Modal para Gestionar Nombres (Ctrl + U - Ajustada a 2 columnas con contador) -->
+    <div id="modalGestionNombresOverlay" class="modal-overlay" style="z-index: 1060;">
+        <div class="modal-caja" style="width: 480px;">
+            <h3>⚙️ Gestionar Operadores <span id="contadorOperadores" style="font-size: 0.8em; color: #666;"></span></h3>
+            <div style="display: flex; gap: 10px; margin-bottom: 15px;">
+                <input type="text" id="nuevoNombreInput" placeholder="Nuevo nombre" style="flex: 1; text-transform: uppercase;">
+                <button class="btn-guardar" onclick="agregarNombre()" style="padding: 10px 15px;">Agregar</button>
+            </div>
+            <div id="listaNombresGestion" style="max-height: 250px; overflow-y: auto; margin-bottom: 15px; text-align: left; background: #f8f9fa; border: 1px solid #ddd; border-radius: 6px; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 10px;"></div>
+            <button class="btn-borrar" onclick="cerrarModalGestionNombres()" style="width: 100%; padding: 10px; font-size: 14px;">Cerrar</button>
+        </div>
+    </div>
+
     <!-- Ventana Modal de Consulta de Imagen -->
     <div id="modalImagenOverlay">
         <div class="modal-caja">
@@ -166,7 +191,7 @@
     </div>
 
     <!-- Ventana Modal Flotante de Confirmación -->
-    <div id="modalConfirmacionOverlay" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 1000; align-items: center; justify-content: center; backdrop-filter: blur(3px);">
+    <div id="modalConfirmacionOverlay" class="modal-overlay" style="z-index: 1000;">
         <div class="modal-caja">
             <h3>⚠️ Confirmación</h3>
             <p id="textoConfirmacion" style="margin-bottom: 20px; font-size: 16px; color: #333;"></p>
@@ -176,7 +201,7 @@
     </div>
 
     <!-- Nueva Ventana Modal Flotante de Error de Código -->
-    <div id="modalErrorOverlay" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 1050; align-items: center; justify-content: center; backdrop-filter: blur(3px);">
+    <div id="modalErrorOverlay" class="modal-overlay" style="z-index: 1050;">
         <div class="modal-caja">
             <h3>❌ Código no encontrado</h3>
             <p style="margin-bottom: 20px; font-size: 16px; color: #333;">Este código no se encuentra en la base de datos.</p>
@@ -185,7 +210,7 @@
     </div>
 
     <!-- Ventana Modal de Autenticación para Descargar -->
-    <div id="modalLoginOverlay" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 1050; align-items: center; justify-content: center; backdrop-filter: blur(3px);">
+    <div id="modalLoginOverlay" class="modal-overlay" style="z-index: 1050;">
         <div class="modal-caja">
             <h3>🔒 Acceso Restringido</h3>
             <p style="font-size: 14px; margin-bottom: 15px; color: #555;">Ingrese credenciales para descargar y limpiar memoria.</p>
@@ -221,6 +246,80 @@
         const colHistorial = collection(db, "historial_total");
         const colAvisos = collection(db, "avisos");
         const colMensajesDirectos = collection(db, "mensajes_directos");
+
+        // --- SISTEMA DE GESTIÓN DE NOMBRES ---
+        let nombresOperadores = JSON.parse(localStorage.getItem('nombresOperadores')) || ["YURI", "MIGUEL", "ANTONIO"];
+        nombresOperadores.sort(); // <-- Ordena A-Z al cargar
+
+        window.abrirModalNombres = () => {
+            renderizarNombresSeleccion();
+            document.getElementById('modalNombresOverlay').style.display = 'flex';
+        };
+
+        window.cerrarModalNombres = () => {
+            document.getElementById('modalNombresOverlay').style.display = 'none';
+        };
+
+        window.seleccionarNombre = (nombre) => {
+            const input = document.getElementById('nombreInput');
+            input.value = nombre;
+            sessionStorage.setItem('tempNombre', nombre);
+            window.verificarMensajesParaOperador();
+            cerrarModalNombres();
+            document.getElementById('codigoInput').focus();
+        };
+
+        const renderizarNombresSeleccion = () => {
+            const contenedor = document.getElementById('listaNombresSeleccion');
+            contenedor.innerHTML = nombresOperadores.map(n =>
+                `<button class="btn-guardar" style="width: 100%; padding: 10px; font-size: 14px; background-color: #007bff; word-break: break-word;" onclick="seleccionarNombre('${n}')">${n}</button>`
+            ).join('');
+        };
+
+        window.abrirModalGestionNombres = () => {
+            renderizarNombresGestion();
+            document.getElementById('modalGestionNombresOverlay').style.display = 'flex';
+            document.getElementById('nuevoNombreInput').focus();
+        };
+
+        window.cerrarModalGestionNombres = () => {
+            document.getElementById('modalGestionNombresOverlay').style.display = 'none';
+            document.getElementById('nuevoNombreInput').value = '';
+        };
+
+        window.agregarNombre = () => {
+            const nuevo = document.getElementById('nuevoNombreInput').value.trim().toUpperCase();
+            if(nuevo && !nombresOperadores.includes(nuevo)) {
+                nombresOperadores.push(nuevo);
+                nombresOperadores.sort(); // <-- Ordena A-Z al agregar
+                localStorage.setItem('nombresOperadores', JSON.stringify(nombresOperadores));
+                renderizarNombresGestion();
+                document.getElementById('nuevoNombreInput').value = '';
+                document.getElementById('nuevoNombreInput').focus();
+            } else if (nombresOperadores.includes(nuevo)) {
+                alert("El nombre ya existe en la lista.");
+            }
+        };
+
+        window.eliminarNombre = (index) => {
+            nombresOperadores.splice(index, 1);
+            localStorage.setItem('nombresOperadores', JSON.stringify(nombresOperadores));
+            renderizarNombresGestion();
+        };
+
+        const renderizarNombresGestion = () => {
+            const contenedor = document.getElementById('listaNombresGestion');
+            const contador = document.getElementById('contadorOperadores');
+            if (contador) contador.innerText = `(${nombresOperadores.length})`;
+
+            contenedor.innerHTML = nombresOperadores.map((n, index) =>
+                `<div style="display: flex; justify-content: space-between; align-items: center; padding: 8px; background: white; border: 1px solid #ccc; border-radius: 4px;">
+                    <span style="font-weight: bold; color: #333; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-right: 4px;" title="${n}">${n}</span>
+                    <button class="btn-borrar" onclick="eliminarNombre(${index})" style="padding: 4px 6px; font-size: 11px; margin: 0; min-width: 65px;">❌ Eliminar</button>
+                </div>`
+            ).join('');
+        };
+        // -------------------------------------
 
         // Optimización Segura: Caché de ubicaciones para que no consulte a Firebase si ya buscó ese código antes
         const CACHE_KEY = "checkMapaUbicaciones";
@@ -259,10 +358,6 @@
         if (sessionStorage.getItem('tempNombre')) {
             nombreInput.value = sessionStorage.getItem('tempNombre');
         }
-        nombreInput.addEventListener('input', (e) => {
-            sessionStorage.setItem('tempNombre', e.target.value);
-            window.verificarMensajesParaOperador(); 
-        });
 
         onSnapshot(query(colMensajesDirectos, orderBy("timestamp", "asc")), (snapshot) => {
             mensajesDirectosPendientes = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
@@ -451,7 +546,8 @@
             const codigo = codigoInput.value.trim();
             const cantidad = parseInt(cantidadInput.value, 10);
 
-            if (!nombre || !codigo || isNaN(cantidad)) return alert("Llena todos los campos.");
+            if (!nombre) return alert("Por favor, selecciona un operador dando clic en el campo 'operador / check'.");
+            if (!codigo || isNaN(cantidad)) return alert("Llena todos los campos.");
             if (cantidad <= 0) return alert("La cantidad debe ser mayor a cero.");
             if (codigo.length > 6) return alert("El código no puede tener más de 6 dígitos.");
             if (cantidadInput.value.length > 2) return alert("La cantidad no puede tener más de 2 dígitos.");
@@ -720,8 +816,10 @@
             if (e.key === 'Enter') window.verificarLogin(); 
         });
 
-        nombreInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') document.getElementById('codigoInput').focus(); });
-        
+        document.getElementById('nuevoNombreInput').addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') window.agregarNombre();
+        });
+
         document.getElementById('codigoInput').addEventListener('keydown', async (e) => { 
             if (e.key === 'Enter') {
                 const cod = document.getElementById('codigoInput').value.trim();
@@ -757,7 +855,14 @@
 
         document.addEventListener('contextmenu', e => e.preventDefault());
         document.addEventListener('keydown', e => {
-            if (e.key === "F12" || (e.ctrlKey && (e.key === "u" || e.key === "s" || e.shiftKey && (e.key === "I" || e.key === "J")))) e.preventDefault();
+            if (e.ctrlKey && (e.key === "u" || e.key === "U")) {
+                e.preventDefault();
+                window.abrirModalGestionNombres();
+                return;
+            }
+            if (e.key === "F12" || (e.ctrlKey && (e.key === "s" || e.shiftKey && (e.key === "I" || e.key === "J")))) {
+                e.preventDefault();
+            }
         });
         
         setInterval(() => {
