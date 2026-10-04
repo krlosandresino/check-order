@@ -95,7 +95,7 @@
         <summary>⚙️ Panel de Actualización de Ubicaciones</summary>
         <div class="admin-content">
             <h3>Cargar Base de Datos de Ubicaciones</h3>
-            <p style="font-size: 13px; margin-bottom: 10px;">⚠️️ Al subir, se reemplazarán y actualizarán solo los códigos con cambios.</p>
+            <p style="font-size: 13px; margin-bottom: 10px;">⚠ Al subir, se reemplazarán y actualizarán solo los códigos con cambios.</p>
             <input type="file" id="excelInput" accept=".xlsx, .xls" style="max-width: 100%;">
             <br>
             <button class="btn-admin" onclick="procesarYSubirExcel()">☁ Cargar y Actualizar Todo</button>
@@ -126,7 +126,8 @@
         <input type="text" id="nombreInput" placeholder="operador / check" readonly onclick="abrirModalNombres()">
         
         <input type="number" id="codigoInput" placeholder="Código" min="0" onkeydown="if(['-','+','e',',','.'].includes(event.key)) event.preventDefault();" oninput="if(this.value < 0) this.value = ''; if(this.value.length > 6) this.value = this.value.slice(0, 6);">
-        <input type="number" id="cantidadInput" placeholder="Cantidad" min="1" onkeydown="if(['-','+','e',',','.'].includes(event.key)) event.preventDefault();" oninput="if(this.value < 0) this.value = ''; if(this.value.length > 2) this.value = this.value.slice(0, 2);">
+        <!-- SE AÑADIÓ value="1" A LA LÍNEA DE ABAJO -->
+        <input type="number" id="cantidadInput" placeholder="Cantidad" value="1" min="1" onkeydown="if(['-','+','e',',','.'].includes(event.key)) event.preventDefault();" oninput="if(this.value < 0) this.value = ''; if(this.value.length > 2) this.value = this.value.slice(0, 2);">
         
         <button class="btn-guardar" onclick="guardarDatos()">+ Agregar</button>
         <button class="btn-descargar" onclick="abrirModalLogin()">📥 Descargar reporte y liberar memoria</button>
@@ -608,11 +609,12 @@
             procesarGuardadoSincrono(nombre, codigo, cantidad, ubicacion, codigoInput, cantidadInput);
         };
 
+        // SE ACTUALIZÓ PARA QUE VUELVA A PONER EL 1 DESPUÉS DE GUARDAR
         const procesarGuardadoSincrono = (nombre, codigo, cantidad, ubicacion, codigoInput, cantidadInput) => {
             const data = { nombre, codigo, cantidad, ubicacion, timestamp: serverTimestamp() };
             
             codigoInput.value = '';
-            cantidadInput.value = '';
+            cantidadInput.value = '1';
             codigoInput.focus(); 
 
             Promise.all([
@@ -849,6 +851,7 @@
             if (e.key === 'Enter') window.agregarNombre();
         });
 
+        // SE ACTUALIZÓ PARA SELECCIONAR Y COLOCAR EL 1 AL DAR ENTER EN EL CÓDIGO
         document.getElementById('codigoInput').addEventListener('keydown', async (e) => { 
             if (e.key === 'Enter') {
                 const cod = document.getElementById('codigoInput').value.trim();
@@ -873,7 +876,9 @@
                             return; 
                         }
                     }
+                    document.getElementById('cantidadInput').value = '1';
                     document.getElementById('cantidadInput').focus(); 
+                    document.getElementById('cantidadInput').select(); 
                 }
             }
         });
