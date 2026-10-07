@@ -906,11 +906,17 @@
         document.getElementById('relojActual').innerText = new Date().toLocaleTimeString('es-EC');
         
         // --- Lógica de Pantalla de Bloqueo por Actualización ---
+        let estabaActualizando = false;
         onSnapshot(doc(db, "configuracion", "estado_sistema"), (docSnap) => {
             if (docSnap.exists() && docSnap.data().actualizando === true) {
                 document.getElementById('updateOverlay').style.display = 'flex';
+                estabaActualizando = true;
             } else {
-                document.getElementById('updateOverlay').style.display = 'none';
+                if (estabaActualizando) {
+                    window.location.reload();
+                } else {
+                    document.getElementById('updateOverlay').style.display = 'none';
+                }
             }
         });
 
