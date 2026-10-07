@@ -913,6 +913,9 @@
                 estabaActualizando = true;
             } else {
                 if (estabaActualizando) {
+                    // Limpieza del LocalStorage añadida aquí
+                    localStorage.removeItem(CACHE_KEY);
+                    mapaUbicaciones = {}; 
                     window.location.reload();
                 } else {
                     document.getElementById('updateOverlay').style.display = 'none';
