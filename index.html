@@ -908,17 +908,31 @@
         // --- Lógica de Pantalla de Bloqueo por Actualización ---
         let estabaActualizando = false;
         onSnapshot(doc(db, "configuracion", "estado_sistema"), (docSnap) => {
-            if (docSnap.exists() && docSnap.data().actualizando === true) {
-                document.getElementById('updateOverlay').style.display = 'flex';
-                estabaActualizando = true;
-            } else {
-                if (estabaActualizando) {
-                    // Limpieza del LocalStorage añadida aquí
-                    localStorage.removeItem(CACHE_KEY);
-                    mapaUbicaciones = {}; 
-                    window.location.reload();
+            if (docSnap.exists()) {
+                const data = docSnap.data();
+
+                // 1. Verificamos si hubo una actualización mientras la página estaba cerrada
+                const cacheTimestamp = localStorage.getItem("timestamp_cache") || 0;
+                if (data.ultima_actualizacion && data.ultima_actualizacion > cacheTimestamp) {
+                    localStorage.removeItem(CACHE_KEY); // Borramos el caché viejo
+                    localStorage.setItem("timestamp_cache", data.ultima_actualizacion); // Guardamos la nueva fecha
+                    mapaUbicaciones = {}; // Limpiamos la memoria local
+                }
+
+                // 2. Lógica normal de bloqueo en tiempo real
+                if (data.actualizando === true) {
+                    document.getElementById('updateOverlay').style.display = 'flex';
+                    estabaActualizando = true;
                 } else {
-                    document.getElementById('updateOverlay').style.display = 'none';
+                    if (estabaActualizando) {
+                        // Limpieza del LocalStorage añadida aquí
+                        localStorage.removeItem(CACHE_KEY);
+                        localStorage.setItem("timestamp_cache", data.ultima_actualizacion || Date.now());
+                        mapaUbicaciones = {}; 
+                        window.location.reload();
+                    } else {
+                        document.getElementById('updateOverlay').style.display = 'none';
+                    }
                 }
             }
         });
