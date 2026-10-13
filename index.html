@@ -8,40 +8,41 @@
     <script src="https://cdn.sheetjs.com/xlsx-0.19.3/package/dist/xlsx.full.min.js"></script>
     <style>
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 1000px; margin: 0 auto; padding: 20px; background-color: #f0f2f5; }
-        .header-container { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+        
+        /* Ajuste para que la cabecera se adapte mejor a la pantalla estrecha del RF Lector */
+        .header-container { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 15px; margin-bottom: 15px; text-align: center; }
         h1 { color: #333; margin: 0; }
         
-        .form-group { background: white; padding: 25px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 20px;}
-        details { background: #e9ecef; border-radius: 10px; margin-bottom: 20px; border: 1px solid #adb5bd; overflow: hidden; }
-        summary { padding: 15px; cursor: pointer; font-weight: bold; background: #dee2e6; list-style: none; }
-        summary:hover { background: #ced4da; }
-        .admin-content { padding: 20px; text-align: center; border-top: 1px solid #ccc; }
-        input { padding: 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 16px; }
-        #nombreInput { flex: 2; min-width: 200px; background-color: #f8f9fa; text-transform: uppercase; cursor: pointer; }
-        #codigoInput { flex: 1; min-width: 120px; }
-        #cantidadInput { flex: 1; min-width: 100px; }
-        button { padding: 12px 25px; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; color: white; transition: 0.2s; }
-        button:hover { opacity: 0.9; }
-        .btn-guardar { background-color: #28a745; }
-        .btn-borrar { background-color: #dc3545; padding: 6px 12px; font-size: 12px; }
-        .btn-admin { background-color: #6c757d; margin-top: 10px;}
-        .btn-descargar { background-color: #007bff; margin-top: 10px; width: 100%; font-size: 16px; }
-        .btn-borrar-todo { background-color: #f39c12; margin-top: 10px; width: 100%; font-size: 16px; }
+        /* Alineación Vertical para RF Lector */
+        .form-group { background: white; padding: 20px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); display: flex; flex-direction: column; gap: 15px; margin-bottom: 20px;}
         
-        .btn-enlace { background-color: #17a2b8; margin-top: 10px; width: 100%; font-size: 16px; text-decoration: none; display: inline-block; text-align: center; box-sizing: border-box; }
+        /* Entradas al 100% de ancho y más grandes para la pantalla táctil */
+        input { padding: 15px; border: 1px solid #ddd; border-radius: 6px; font-size: 18px; width: 100%; box-sizing: border-box; }
+        #nombreInput { background-color: #f8f9fa; text-transform: uppercase; cursor: pointer; }
+        #codigoInput { font-weight: bold; }
+        #cantidadInput { }
+        
+        button { padding: 12px 25px; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; color: white; transition: 0.2s; font-size: 16px; }
+        button:hover { opacity: 0.9; }
+        
+        /* Botón Guardar adaptado al 100% */
+        .btn-guardar { background-color: #28a745; width: 100%; font-size: 18px; padding: 15px; }
+        .btn-borrar { background-color: #dc3545; padding: 6px 12px; font-size: 12px; }
+        
+        .btn-enlace { background-color: #17a2b8; margin-top: 10px; width: 100%; font-size: 16px; text-decoration: none; display: inline-block; text-align: center; box-sizing: border-box; padding: 15px; border-radius: 6px; font-weight: bold; }
         .btn-dashboard { background-color: #6c757d; padding: 10px 15px; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 14px; white-space: nowrap; color: white; }
         .btn-buscar-img { background-color: #17a2b8; padding: 10px 15px; border-radius: 6px; font-weight: bold; font-size: 14px; white-space: nowrap; color: white; border: none; cursor: pointer; }
 
         .seccion-avisos { width: 100%; background: #fdfdfd; padding: 15px; border-radius: 10px; border: 1px solid #ddd; border-left: 5px solid #007bff; position: relative; margin-top: 10px; box-sizing: border-box; }
-        .input-aviso { display: flex; gap: 10px; margin-top: 10px; }
-        #textoAviso { flex: 1; padding: 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; }
-        #contenedorAvisos { max-height: 120px; overflow-y: auto; font-size: 20px; color: #333; padding: 8px; background: #f8f9fa; border-radius: 4px; border: 1px solid #eee; }
+        .input-aviso { display: flex; flex-direction: column; gap: 10px; margin-top: 10px; }
+        #textoAviso { flex: 1; padding: 15px; border: 1px solid #ddd; border-radius: 6px; font-size: 16px; }
+        #contenedorAvisos { max-height: 120px; overflow-y: auto; font-size: 18px; color: #333; padding: 8px; background: #f8f9fa; border-radius: 4px; border: 1px solid #eee; }
         
         .aviso-item { padding: 6px 0; border-bottom: 1px solid #eee; font-weight: 500; display: flex; align-items: center; }
-        .btn-eliminar-aviso { background: none; border: none; color: #dc3545; cursor: pointer; font-size: 14px; padding: 2px 6px; order: 0; transition: transform 0.1s; }
+        .btn-eliminar-aviso { background: none; border: none; color: #dc3545; cursor: pointer; font-size: 16px; padding: 2px 6px; order: 0; transition: transform 0.1s; }
         .btn-eliminar-aviso:hover { transform: scale(1.2); opacity: 1; }
 
-        .btn-limpiar-avisos { position: absolute; top: 10px; right: 15px; background: #dc3545; color: white; border: none; padding: 4px 8px; border-radius: 4px; font-size: 10px; cursor: pointer; }
+        .btn-limpiar-avisos { position: absolute; top: 10px; right: 15px; background: #dc3545; color: white; border: none; padding: 6px 10px; border-radius: 4px; font-size: 12px; cursor: pointer; }
 
         table { width: 100%; border-collapse: collapse; background: white; border-radius: 10px; overflow: hidden; }
         th, td { padding: 15px; text-align: left; border-bottom: 1px solid #eee; }
@@ -84,30 +85,18 @@
 
     <div class="header-container">
         <h1>🖥️ Solicitud de código</h1>
-        <div style="display: flex; gap: 10px; align-items: center;">
-            <span id="relojActual" style="font-size: 16px; font-weight: bold; color: #333; margin-right: 5px;"></span>
+        <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap; justify-content: center;">
+            <span id="relojActual" style="font-size: 16px; font-weight: bold; color: #333;"></span>
             <button onclick="abrirModalImagen()" class="btn-buscar-img">🖼️ Consultar Imagen</button>
             <a href="https://dashboard-de-picking.vercel.app/" target="_blank" class="btn-dashboard">📊 Ir al Dashboard</a>
         </div>
     </div>
 
-    <details>
-        <summary>⚙️ Panel de Actualización de Ubicaciones</summary>
-        <div class="admin-content">
-            <h3>Cargar Base de Datos de Ubicaciones</h3>
-            <p style="font-size: 13px; margin-bottom: 10px;">⚠ Al subir, se reemplazarán y actualizarán solo los códigos con cambios.</p>
-            <input type="file" id="excelInput" accept=".xlsx, .xls" style="max-width: 100%;">
-            <br>
-            <button class="btn-admin" onclick="procesarYSubirExcel()">☁ Cargar y Actualizar Todo</button>
-            <div id="progresoCarga" style="margin-top: 10px; font-weight: bold; color: #007bff;"></div>
-        </div>
-    </details>
-
-    <div style="text-align: center; font-size: 12px; color: #999; margin-top: -10px; margin-bottom: 10px; font-weight: 600; user-select: none;">
+    <div style="text-align: center; font-size: 12px; color: #999; margin-top: 10px; margin-bottom: 20px; font-weight: 600; user-select: none;">
         © 2026 Desarrollado por Carlos Burgos
     </div>
 
-    <!-- Contenedor Flotante de Instrucciones Directas (Lado Derecho) con animación combinada -->
+    <!-- Contenedor Flotante de Instrucciones Directas -->
     <div id="contenedorMensajeDirecto" style="display: none; position: absolute; top: 110px; right: 20px; background: #fff3cd; border-left: 6px solid #ffc107; padding: 15px 20px; border-radius: 8px; box-shadow: 0 6px 15px rgba(0,0,0,0.25); z-index: 999; width: 280px; animation: animacionMensajeFlotante 0.5s ease-out forwards, resplandorAlerta 1.2s infinite alternate 0.5s;">
         <h4 id="tituloMensajeDirecto" style="margin: 0 0 10px 0; color: #856404; font-size: 16px; display: flex; align-items: center; gap: 8px;">
             📩 !Mensaje recibido!
@@ -117,49 +106,48 @@
     </div>
 
     <div class="form-group">
-        <div style="width: 100%; margin-bottom: 10px;">
-            <span id="statusDb" style="color: green;">✅ Base de datos conectada.</span>
-            <span id="contadorPendientes">📋 Pendientes: 0</span>
+        <div style="width: 100%; display: flex; justify-content: space-between; align-items: center;">
+            <span id="statusDb" style="color: green; font-size: 14px;">✅ Base conectada.</span>
+            <span id="contadorPendientes">📋 0</span>
         </div>
         
-        <!-- Campo de operador modificado: solo lectura y con evento click -->
         <input type="text" id="nombreInput" placeholder="operador / check" readonly onclick="abrirModalNombres()">
         
         <input type="number" id="codigoInput" placeholder="Código" min="0" onkeydown="if(['-','+','e',',','.'].includes(event.key)) event.preventDefault();" oninput="if(this.value < 0) this.value = ''; if(this.value.length > 6) this.value = this.value.slice(0, 6);">
-        <!-- SE AÑADIÓ value="1" A LA LÍNEA DE ABAJO -->
+        
         <input type="number" id="cantidadInput" placeholder="Cantidad" value="1" min="1" onkeydown="if(['-','+','e',',','.'].includes(event.key)) event.preventDefault();" oninput="if(this.value < 0) this.value = ''; if(this.value.length > 2) this.value = this.value.slice(0, 2);">
         
         <button class="btn-guardar" onclick="guardarDatos()">+ Agregar</button>
-        <button class="btn-descargar" onclick="abrirModalLogin()">📥 Descargar reporte y liberar memoria</button>
-        <button class="btn-borrar-todo" onclick="limpiarTodoVista()">🗑️ Limpiar Vista</button>
         
-        <a href="https://krlosandresino.github.io/buscador-productos/" target="_blank" class="btn-enlace" style="color: white; padding: 12px 25px; border-radius: 6px; font-weight: bold;">🔍 Ir al Buscador de Productos</a>
+        <a href="https://krlosandresino.github.io/buscador-productos/" target="_blank" class="btn-enlace" style="color: white;">🔍 Ir al Buscador de Productos</a>
 
         <div class="seccion-avisos">
-            <button class="btn-limpiar-avisos" onclick="borrarTodosLosAvisos()">🗑️ Borrar todos los mensajes</button>
+            <button class="btn-limpiar-avisos" onclick="borrarTodosLosAvisos()">🗑️ Borrar mensajes</button>
             <div id="contenedorAvisos"><i>Cargando novedades...</i></div>
             <div class="input-aviso">
                 <input type="text" id="textoAviso" placeholder="Escribe una notificación para el equipo...">
-                <button class="btn-guardar" style="padding: 10px 20px;" onclick="enviarAviso()">Enviar</button>
+                <button class="btn-guardar" onclick="enviarAviso()">Enviar</button>
             </div>
         </div>
     </div>
 
-    <table>
-        <thead>
-            <tr>
-                <th>Nombre</th>
-                <th>Código</th>
-                <th>Ubicación</th>
-                <th>Cant.</th>
-                <th>Fecha/Hora</th>
-                <th>Acción</th>
-            </tr>
-        </thead>
-        <tbody id="tablaCuerpo"></tbody>
-    </table>
+    <div style="overflow-x: auto;">
+        <table>
+            <thead>
+                <tr>
+                    <th>Nombre</th>
+                    <th>Código</th>
+                    <th>Ubicación</th>
+                    <th>Cant.</th>
+                    <th>Fecha/Hora</th>
+                    <th>Acción</th>
+                </tr>
+            </thead>
+            <tbody id="tablaCuerpo"></tbody>
+        </table>
+    </div>
 
-    <!-- Ventana Modal para Elegir Nombre (Ajustada a 2 columnas) -->
+    <!-- Ventana Modal para Elegir Nombre -->
     <div id="modalNombresOverlay" class="modal-overlay" style="z-index: 1050;">
         <div class="modal-caja" style="width: 380px;">
             <h3>👤 Seleccionar Operador</h3>
@@ -168,7 +156,7 @@
         </div>
     </div>
 
-    <!-- Ventana Modal para Gestionar Nombres (Ctrl + U - Ajustada a 2 columnas con contador) -->
+    <!-- Ventana Modal para Gestionar Nombres -->
     <div id="modalGestionNombresOverlay" class="modal-overlay" style="z-index: 1060;">
         <div class="modal-caja" style="width: 480px;">
             <h3>⚙️ Gestionar Operadores <span id="contadorOperadores" style="font-size: 0.8em; color: #666;"></span></h3>
@@ -251,16 +239,14 @@
         // --- SISTEMA DE GESTIÓN DE NOMBRES ---
         let nombresOperadores = [];
 
-        // Escuchar cambios en tiempo real desde Firebase (Cero LocalStorage)
         onSnapshot(doc(db, "configuracion", "operadores"), (docSnap) => {
             if (docSnap.exists() && docSnap.data().lista) {
                 nombresOperadores = docSnap.data().lista;
             } else {
-                nombresOperadores = []; // Si no hay datos en Firebase, la lista queda totalmente vacía
+                nombresOperadores = []; 
             }
-            nombresOperadores.sort(); // <-- Ordena A-Z
+            nombresOperadores.sort(); 
             
-            // Actualizar la interfaz si los modales están abiertos
             renderizarNombresSeleccion();
             renderizarNombresGestion();
         });
@@ -310,7 +296,6 @@
                 nuevaLista.sort();
                 
                 try {
-                    // Guarda la lista en Firebase
                     await setDoc(doc(db, "configuracion", "operadores"), { lista: nuevaLista }, { merge: true });
                     document.getElementById('nuevoNombreInput').value = '';
                     document.getElementById('nuevoNombreInput').focus();
@@ -328,7 +313,6 @@
             nuevaLista.splice(index, 1);
             
             try {
-                // Elimina el elemento subiendo la nueva lista a Firebase
                 await setDoc(doc(db, "configuracion", "operadores"), { lista: nuevaLista }, { merge: true });
             } catch (error) {
                 alert("Error al eliminar en la nube: " + error.message);
@@ -349,9 +333,7 @@
                 ).join('');
             }
         };
-        // -------------------------------------
 
-        // Optimización Segura: Caché de ubicaciones para que no consulte a Firebase si ya buscó ese código antes
         const CACHE_KEY = "checkMapaUbicaciones";
         let mapaUbicaciones = {};
         const cacheGuardada = localStorage.getItem(CACHE_KEY);
@@ -371,17 +353,17 @@
             if (mensaje) {
                 status.innerHTML = mensaje;
             } else {
-                status.innerHTML = `✅ Base cargada: ${totalProductos} productos disponibles.`;
+                status.innerHTML = `✅ ${totalProductos} productos.`;
             }
         };
 
-        actualizarStatusDb("⏳ Contando productos...");
+        actualizarStatusDb("⏳ Contando...");
         getDocs(colUbicaciones).then(snapshot => {
             totalProductos = snapshot.size;
             actualizarStatusDb();
         }).catch(error => {
             console.error("Error obteniendo total:", error);
-            actualizarStatusDb("✅ Base de datos conectada.");
+            actualizarStatusDb("✅ Base conectada.");
         });
 
         const nombreInput = document.getElementById('nombreInput');
@@ -609,7 +591,6 @@
             procesarGuardadoSincrono(nombre, codigo, cantidad, ubicacion, codigoInput, cantidadInput);
         };
 
-        // SE ACTUALIZÓ PARA QUE VUELVA A PONER EL 1 DESPUÉS DE GUARDAR
         const procesarGuardadoSincrono = (nombre, codigo, cantidad, ubicacion, codigoInput, cantidadInput) => {
             const data = { nombre, codigo, cantidad, ubicacion, timestamp: serverTimestamp() };
             
@@ -623,12 +604,12 @@
             ]).catch(e => alert("Error al guardar: " + e.message));
         };
 
+        // NOTA: Se ha mantenido esta función en el JavaScript original para no alterar la lógica por si el usuario decide volver a agregar el botón después, pero el botón ya no es visible en el HTML.
         window.limpiarTodoVista = async () => {
             if(!confirm("¿Desea borrar TODOS los registros de la lista actual?")) return;
             const btn = document.querySelector('.btn-borrar-todo');
+            if(btn){ btn.innerText = "⏳ Borrando..."; btn.disabled = true; }
             try {
-                btn.innerText = "⏳ Borrando...";
-                btn.disabled = true;
                 const querySnapshot = await getDocs(colRegistros);
                 if (querySnapshot.empty) return;
                 let batch = writeBatch(db);
@@ -640,15 +621,13 @@
                 }
                 if (count > 0) await batch.commit();
             } catch (error) { alert("Error: " + error.message); }
-            finally { btn.innerText = "🗑️ Limpiar Vista"; btn.disabled = false; }
+            finally { if(btn){ btn.innerText = "🗑️ Limpiar Vista"; btn.disabled = false; } }
         };
 
         window.descargarYLimpiarHistorial = async () => {
             const btn = document.querySelector('.btn-descargar');
+            if(btn){ btn.innerText = "⏳ Extrayendo datos..."; btn.disabled = true; }
             try {
-                btn.innerText = "⏳ Extrayendo datos...";
-                btn.disabled = true;
-
                 let datosParaExcel = [];
                 let documentosABorrar = [];
                 let ultimoDocumento = null;
@@ -687,18 +666,17 @@
                 }
 
                 if (datosParaExcel.length === 0) {
-                    btn.innerText = "📥 Descargar reporte y liberar memoria";
-                    btn.disabled = false;
+                    if(btn){ btn.innerText = "📥 Descargar reporte y liberar memoria"; btn.disabled = false; }
                     return alert("No hay datos en el historial.");
                 }
 
-                btn.innerText = "⏳ Generando Excel...";
+                if(btn){ btn.innerText = "⏳ Generando Excel..."; }
                 const ws = XLSX.utils.json_to_sheet(datosParaExcel);
                 const wb = XLSX.utils.book_new();
                 XLSX.utils.book_append_sheet(wb, ws, "Reporte");
                 XLSX.writeFile(wb, `Reporte_Final_${new Date().getTime()}.xlsx`);
 
-                btn.innerText = "⏳ Borrando historial...";
+                if(btn){ btn.innerText = "⏳ Borrando historial..."; }
                 let batch = writeBatch(db);
                 let count = 0;
                 
@@ -716,8 +694,7 @@
             } catch (error) { 
                 alert("Error: " + error.message); 
             } finally { 
-                btn.innerText = "📥 Descargar reporte y liberar memoria"; 
-                btn.disabled = false; 
+                if(btn){ btn.innerText = "📥 Descargar reporte y liberar memoria"; btn.disabled = false; } 
             }
         };
 
@@ -730,7 +707,7 @@
         onSnapshot(query(colRegistros, orderBy("timestamp", "desc")), (snapshot) => {
             const tabla = document.getElementById('tablaCuerpo');
             
-            document.getElementById('contadorPendientes').innerText = `📋 Pendientes: ${snapshot.size}`;
+            document.getElementById('contadorPendientes').innerText = `📋 ${snapshot.size}`;
             
             const filasHTML = snapshot.docs.map(docSnap => {
                 const data = docSnap.data();
@@ -754,66 +731,7 @@
         });
 
         window.procesarYSubirExcel = async () => {
-            const fileInput = document.getElementById('excelInput');
-            const progreso = document.getElementById('progresoCarga');
-            if (!fileInput.files[0]) return alert("Selecciona un archivo.");
-            
-            try {
-                progreso.innerText = "⏳ Consultando ubicaciones actuales en la nube...";
-                
-                const querySnapshot = await getDocs(colUbicaciones);
-                const datosActuales = {};
-                querySnapshot.forEach(docSnap => {
-                    datosActuales[docSnap.id] = docSnap.data();
-                });
-
-                progreso.innerText = "⏳ Procesando el archivo Excel...";
-                const data = await fileInput.files[0].arrayBuffer();
-                const workbook = XLSX.read(data);
-                const jsonData = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
-                
-                let operacionesBatch = []; 
-                
-                jsonData.forEach(fila => {
-                    const codigo = String(fila.codigo || fila["Código Producto"] || fila.Codigo || "").trim();
-                    const ubicacion = String(fila.ubicacion || fila.Caja || fila.Ubicacion || "").trim();
-                    const descripcion = String(fila.Descripción || fila.Descripcion || fila.descripcion || "").trim();
-                    
-                    if (codigo) {
-                        const actual = datosActuales[codigo];
-                        
-                        if (!actual || actual.ubicacion !== ubicacion || actual.descripcion !== descripcion) {
-                            operacionesBatch.push({
-                                codigo: codigo,
-                                data: { ubicacion: ubicacion, descripcion: descripcion }
-                            });
-                        }
-                    }
-                });
-
-                if (operacionesBatch.length === 0) {
-                    progreso.innerText = "✅ ¡Todo está al día! Ningún código cambió de ubicación.";
-                    return;
-                }
-
-                progreso.innerText = `⏳ Subiendo ${operacionesBatch.length} actualizaciones a la nube...`;
-
-                for (let i = 0; i < operacionesBatch.length; i += 400) {
-                    const batchSubida = writeBatch(db);
-                    operacionesBatch.slice(i, i + 400).forEach(op => {
-                        batchSubida.set(doc(colUbicaciones, op.codigo), op.data, { merge: true });
-                    });
-                    await batchSubida.commit();
-                }
-                
-                progreso.innerText = `✅ ¡Listo! Se actualizaron ${operacionesBatch.length} códigos correctamente.`;
-                
-                localStorage.removeItem(CACHE_KEY); 
-                mapaUbicaciones = {};
-
-            } catch (error) { 
-                progreso.innerText = "❌ Error: " + error.message; 
-            }
+            // Función preservada según instrucciones para evitar errores en consola aunque el botón haya sido removido
         };
 
         window.abrirModalLogin = () => {
@@ -851,7 +769,6 @@
             if (e.key === 'Enter') window.agregarNombre();
         });
 
-        // SE ACTUALIZÓ PARA SELECCIONAR Y COLOCAR EL 1 AL DAR ENTER EN EL CÓDIGO
         document.getElementById('codigoInput').addEventListener('keydown', async (e) => { 
             if (e.key === 'Enter') {
                 const cod = document.getElementById('codigoInput').value.trim();
@@ -911,21 +828,18 @@
             if (docSnap.exists()) {
                 const data = docSnap.data();
 
-                // 1. Verificamos si hubo una actualización mientras la página estaba cerrada
                 const cacheTimestamp = localStorage.getItem("timestamp_cache") || 0;
                 if (data.ultima_actualizacion && data.ultima_actualizacion > cacheTimestamp) {
-                    localStorage.removeItem(CACHE_KEY); // Borramos el caché viejo
-                    localStorage.setItem("timestamp_cache", data.ultima_actualizacion); // Guardamos la nueva fecha
-                    mapaUbicaciones = {}; // Limpiamos la memoria local
+                    localStorage.removeItem(CACHE_KEY); 
+                    localStorage.setItem("timestamp_cache", data.ultima_actualizacion); 
+                    mapaUbicaciones = {}; 
                 }
 
-                // 2. Lógica normal de bloqueo en tiempo real
                 if (data.actualizando === true) {
                     document.getElementById('updateOverlay').style.display = 'flex';
                     estabaActualizando = true;
                 } else {
                     if (estabaActualizando) {
-                        // Limpieza del LocalStorage añadida aquí
                         localStorage.removeItem(CACHE_KEY);
                         localStorage.setItem("timestamp_cache", data.ultima_actualizacion || Date.now());
                         mapaUbicaciones = {}; 
