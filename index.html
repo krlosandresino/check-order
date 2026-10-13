@@ -111,13 +111,13 @@
             <span id="contadorPendientes">📋 0</span>
         </div>
         
-        <input type="text" id="nombreInput" placeholder="operador / check" readonly onclick="abrirModalNombres()">
-        
-        <input type="number" id="codigoInput" placeholder="Código" min="0" onkeydown="if(['-','+','e',',','.'].includes(event.key)) event.preventDefault();" oninput="if(this.value < 0) this.value = ''; if(this.value.length > 6) this.value = this.value.slice(0, 6);">
-        
-        <input type="number" id="cantidadInput" placeholder="Cantidad" value="1" min="1" onkeydown="if(['-','+','e',',','.'].includes(event.key)) event.preventDefault();" oninput="if(this.value < 0) this.value = ''; if(this.value.length > 2) this.value = this.value.slice(0, 2);">
-        
-        <button class="btn-guardar" onclick="guardarDatos()">+ Agregar</button>
+        <!-- ELEMENTOS OCULTOS PARA MANTENER LA ESTRUCTURA Y LÓGICA DE JS INTACTA -->
+        <div style="display: none;">
+            <input type="text" id="nombreInput" placeholder="operador / check" readonly onclick="abrirModalNombres()">
+            <input type="number" id="codigoInput" placeholder="Código" min="0" onkeydown="if(['-','+','e',',','.'].includes(event.key)) event.preventDefault();" oninput="if(this.value < 0) this.value = ''; if(this.value.length > 6) this.value = this.value.slice(0, 6);">
+            <input type="number" id="cantidadInput" placeholder="Cantidad" value="1" min="1" onkeydown="if(['-','+','e',',','.'].includes(event.key)) event.preventDefault();" oninput="if(this.value < 0) this.value = ''; if(this.value.length > 2) this.value = this.value.slice(0, 2);">
+            <button class="btn-guardar" onclick="guardarDatos()">+ Agregar</button>
+        </div>
         
         <a href="https://krlosandresino.github.io/buscador-productos/" target="_blank" class="btn-enlace" style="color: white;">🔍 Ir al Buscador de Productos</a>
 
@@ -604,7 +604,6 @@
             ]).catch(e => alert("Error al guardar: " + e.message));
         };
 
-        // NOTA: Se ha mantenido esta función en el JavaScript original para no alterar la lógica por si el usuario decide volver a agregar el botón después, pero el botón ya no es visible en el HTML.
         window.limpiarTodoVista = async () => {
             if(!confirm("¿Desea borrar TODOS los registros de la lista actual?")) return;
             const btn = document.querySelector('.btn-borrar-todo');
