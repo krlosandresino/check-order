@@ -1,0 +1,866 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🖥️ RF Lector</title>
+    <!-- Se mantiene el script original de SheetJS aquí para no romper la carga -->
+    <script src="https://cdn.sheetjs.com/xlsx-0.19.3/package/dist/xlsx.full.min.js"></script>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 1000px; margin: 0 auto; padding: 15px; background-color: #f0f2f5; }
+        
+        /* Ajuste de Cabecera: Todo centrado y en columna */
+        .header-container { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; margin-bottom: 20px; text-align: center; }
+        h1 { color: #333; margin: 0; font-size: 26px; }
+        
+        /* Alineación Vertical para RF Lector */
+        .form-group { background: white; padding: 20px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); display: flex; flex-direction: column; gap: 15px; margin-bottom: 20px;}
+        
+        /* Entradas al 100% de ancho y más grandes para la pantalla táctil */
+        input { padding: 15px; border: 1px solid #ddd; border-radius: 6px; font-size: 18px; width: 100%; box-sizing: border-box; }
+        #nombreInput { background-color: #f8f9fa; text-transform: uppercase; cursor: pointer; }
+        #codigoInput { font-weight: bold; }
+        
+        button { padding: 12px 25px; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; color: white; transition: 0.2s; font-size: 16px; }
+        button:hover { opacity: 0.9; }
+        
+        /* Botón Guardar adaptado al 100% */
+        .btn-guardar { background-color: #28a745; width: 100%; font-size: 18px; padding: 15px; }
+        .btn-borrar { background-color: #dc3545; padding: 6px 8px; font-size: 12px; }
+        
+        .btn-enlace { background-color: #17a2b8; margin-top: 10px; width: 100%; font-size: 16px; text-decoration: none; display: inline-block; text-align: center; box-sizing: border-box; padding: 15px; border-radius: 6px; font-weight: bold; }
+        
+        /* Botones de cabecera más anchos y consistentes */
+        .btn-dashboard { background-color: #6c757d; padding: 12px 15px; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 15px; width: 80%; max-width: 250px; color: white; box-sizing: border-box; }
+        .btn-buscar-img { background-color: #17a2b8; padding: 12px 15px; border-radius: 6px; font-weight: bold; font-size: 15px; width: 80%; max-width: 250px; color: white; border: none; cursor: pointer; }
+
+        .seccion-avisos { width: 100%; background: #fdfdfd; padding: 15px; border-radius: 10px; border: 1px solid #ddd; border-left: 5px solid #007bff; position: relative; margin-top: 10px; box-sizing: border-box; }
+        
+        /* AJUSTE 2: Formulario comprimido (Row en vez de Column) */
+        .input-aviso { display: flex; flex-direction: row; gap: 8px; margin-top: 10px; align-items: stretch; }
+        #textoAviso { flex: 1; padding: 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; min-width: 0; }
+        .input-aviso .btn-guardar { width: auto; font-size: 15px; padding: 10px 15px; }
+        
+        /* AJUSTE 1: Solapamiento en contenedor corregido con padding derecho */
+        #contenedorAvisos { max-height: 120px; overflow-y: auto; font-size: 15px; color: #333; padding: 8px 35px 8px 8px; background: #f8f9fa; border-radius: 4px; border: 1px solid #eee; }
+        
+        .aviso-item { padding: 6px 0; border-bottom: 1px solid #eee; font-weight: 500; display: flex; align-items: center; }
+        .btn-eliminar-aviso { background: none; border: none; color: #dc3545; cursor: pointer; font-size: 16px; padding: 2px 6px; order: 0; transition: transform 0.1s; }
+        .btn-eliminar-aviso:hover { transform: scale(1.2); opacity: 1; }
+
+        /* Botón de limpiar avisos más pequeño y acomodado */
+        .btn-limpiar-avisos { position: absolute; top: 20px; right: 20px; background: #dc3545; color: white; border: none; padding: 6px 8px; border-radius: 4px; font-size: 14px; cursor: pointer; }
+
+        table { width: 100%; border-collapse: collapse; background: white; border-radius: 10px; overflow: hidden; }
+        
+        /* AJUSTE 4: Encabezados (th) reducidos en su alto (padding vertical) */
+        th, td { padding: 10px 3px; text-align: center; border-bottom: 1px solid #eee; font-size: 13px; word-wrap: break-word; }
+        th { background-color: #007bff; color: white; font-size: 12px; padding: 6px 3px; }
+        
+        .ubicacion-tag { background: #fff3cd; color: #856404; padding: 4px 6px; border-radius: 4px; font-weight: bold; font-size: 12px; }
+        #statusDb { font-size: 14px; margin-left: 10px; color: #666; }
+        #contadorPendientes { font-size: 14px; font-weight: bold; color: #dc3545; float: right; margin-right: 10px; }
+
+        .fila-error { background-color: #fce8e6 !important; animation: parpadeoAlerta 2s infinite alternate; }
+        .ubicacion-error { background: #f8d7da !important; color: #721c24 !important; border: 1px solid #f5c6cb; }
+        @keyframes parpadeoAlerta {
+            0% { background-color: #fce8e6; }
+            100% { background-color: #ffffff; }
+        }
+
+        /* Estilos de la ventana Modal para Consultar Imagen y otras */
+        .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 1000; align-items: center; justify-content: center; backdrop-filter: blur(3px); }
+        #modalImagenOverlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 1000; align-items: center; justify-content: center; backdrop-filter: blur(3px); }
+        .modal-caja { background: white; padding: 25px; border-radius: 10px; width: 320px; box-shadow: 0 5px 15px rgba(0,0,0,0.3); text-align: center; }
+        .modal-caja h3 { margin-top: 0; color: #333; margin-bottom: 15px; }
+        @keyframes animacionMensajeFlotante { 
+            0% { transform: translateX(120%); opacity: 0; } 
+            100% { transform: translateX(0); opacity: 1; } 
+        }
+        @keyframes resplandorAlerta {
+            0% { box-shadow: 0 6px 15px rgba(0,0,0,0.25); }
+            100% { box-shadow: 0 6px 15px rgba(0,0,0,0.25), 0 0 20px rgba(255, 193, 7, 0.9); }
+        }
+        @keyframes spinUpdate { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+
+    <!-- PANTALLA DE BLOQUEO DE ACTUALIZACIÓN -->
+    <div id="updateOverlay" style="display:none; position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(15,23,42,0.95); backdrop-filter:blur(10px); z-index:99999; flex-direction:column; justify-content:center; align-items:center; text-align:center; color:white; pointer-events:all;">
+        <div style="border:6px solid rgba(255,255,255,0.1); border-top:6px solid #3b82f6; border-radius:50%; width:60px; height:60px; animation:spinUpdate 1s linear infinite; margin-bottom:20px;"></div>
+        <h2 style="margin:0; font-size:24px; color:#60a5fa; font-weight:bold; letter-spacing:1px;">RECIBIENDO ACTUALIZACIONES</h2>
+        <p style="color:#94a3b8; font-size:15px; margin-top:10px; max-width:80%;">Por favor, espera un momento. El sistema se desbloqueará automáticamente.</p>
+    </div>
+
+    <!-- CABECERA ACTUALIZADA -->
+    <div class="header-container">
+        <h1>🖥️ Panel - RF Lector</h1>
+        <span id="relojActual" style="font-size: 18px; font-weight: bold; color: #333;"></span>
+        <button onclick="abrirModalImagen()" class="btn-buscar-img">🖼️ Consultar Imagen</button>
+        <!-- BOTÓN IR AL DASHBOARD OCULTO -->
+        <a href="https://dashboard-de-picking.vercel.app/" target="_blank" class="btn-dashboard" style="display: none;">📊 Ir al Dashboard</a>
+    </div>
+
+    <div style="text-align: center; font-size: 12px; color: #999; margin-bottom: 20px; font-weight: 600; user-select: none;">
+        © 2026 Desarrollado por Carlos Burgos
+    </div>
+
+    <!-- Contenedor Flotante de Instrucciones Directas -->
+    <div id="contenedorMensajeDirecto" style="display: none; position: absolute; top: 110px; right: 20px; background: #fff3cd; border-left: 6px solid #ffc107; padding: 15px 20px; border-radius: 8px; box-shadow: 0 6px 15px rgba(0,0,0,0.25); z-index: 999; width: 280px; animation: animacionMensajeFlotante 0.5s ease-out forwards, resplandorAlerta 1.2s infinite alternate 0.5s;">
+        <h4 id="tituloMensajeDirecto" style="margin: 0 0 10px 0; color: #856404; font-size: 16px; display: flex; align-items: center; gap: 8px;">
+            📩 !Mensaje recibido!
+        </h4>
+        <p id="textoMensajeDirecto" style="margin: 0 0 15px 0; font-size: 15px; color: #333; line-height: 1.4; font-weight: 500;"></p>
+        <button onclick="cerrarMensajeDirecto()" style="background: #ffc107; color: #856404; border: none; padding: 8px 12px; border-radius: 4px; font-weight: bold; cursor: pointer; width: 100%; font-size: 14px; transition: opacity 0.2s;">Aceptar, cerrar pantalla</button>
+    </div>
+
+    <div class="form-group">
+        <div style="width: 100%; display: flex; justify-content: space-between; align-items: center;">
+            <span id="statusDb" style="color: green; font-size: 14px;">✅ Base conectada.</span>
+            <span id="contadorPendientes">📋 0</span>
+        </div>
+        
+        <!-- ELEMENTOS OCULTOS PARA MANTENER LA ESTRUCTURA Y LÓGICA DE JS INTACTA -->
+        <div style="display: none;">
+            <input type="text" id="nombreInput" placeholder="operador / check" readonly onclick="abrirModalNombres()">
+            <input type="number" id="codigoInput" placeholder="Código" min="0" onkeydown="if(['-','+','e',',','.'].includes(event.key)) event.preventDefault();" oninput="if(this.value < 0) this.value = ''; if(this.value.length > 6) this.value = this.value.slice(0, 6);">
+            <input type="number" id="cantidadInput" placeholder="Cantidad" value="1" min="1" onkeydown="if(['-','+','e',',','.'].includes(event.key)) event.preventDefault();" oninput="if(this.value < 0) this.value = ''; if(this.value.length > 2) this.value = this.value.slice(0, 2);">
+            <button class="btn-guardar" onclick="guardarDatos()">+ Agregar</button>
+        </div>
+        
+        <a href="https://krlosandresino.github.io/buscador-productos/" target="_blank" class="btn-enlace" style="color: white;">🔍 Ir al Buscador de Productos</a>
+
+        <div class="seccion-avisos">
+            <button class="btn-limpiar-avisos" onclick="borrarTodosLosAvisos()" title="Borrar mensajes">🗑️</button>
+            <div id="contenedorAvisos"><i>Cargando novedades...</i></div>
+            <div class="input-aviso">
+                <input type="text" id="textoAviso" placeholder="Escribe una notificación...">
+                <button class="btn-guardar" onclick="enviarAviso()">Enviar</button>
+            </div>
+        </div>
+    </div>
+
+    <div style="overflow-x: auto;">
+        <table>
+            <thead>
+                <tr>
+                    <th>Nombre</th>
+                    <th>Código</th>
+                    <th>Ubicación</th>
+                    <th>Cant.</th>
+                    <th>Hora</th>
+                    <th>Acción</th>
+                </tr>
+            </thead>
+            <tbody id="tablaCuerpo"></tbody>
+        </table>
+    </div>
+
+    <!-- Ventana Modal para Elegir Nombre -->
+    <div id="modalNombresOverlay" class="modal-overlay" style="z-index: 1050;">
+        <div class="modal-caja" style="width: 380px;">
+            <h3>👤 Seleccionar Operador</h3>
+            <div id="listaNombresSeleccion" style="max-height: 300px; overflow-y: auto; margin-bottom: 15px; display: grid; grid-template-columns: 1fr 1fr; gap: 8px;"></div>
+            <button class="btn-borrar" onclick="cerrarModalNombres()" style="width: 100%; padding: 10px; font-size: 14px;">Cancelar</button>
+        </div>
+    </div>
+
+    <!-- Ventana Modal para Gestionar Nombres -->
+    <div id="modalGestionNombresOverlay" class="modal-overlay" style="z-index: 1060;">
+        <div class="modal-caja" style="width: 480px;">
+            <h3>⚙️ Gestionar Operadores <span id="contadorOperadores" style="font-size: 0.8em; color: #666;"></span></h3>
+            <div style="display: flex; gap: 10px; margin-bottom: 15px;">
+                <input type="text" id="nuevoNombreInput" placeholder="Nuevo nombre" style="flex: 1; text-transform: uppercase;">
+                <button class="btn-guardar" onclick="agregarNombre()" style="padding: 10px 15px;">Agregar</button>
+            </div>
+            <div id="listaNombresGestion" style="max-height: 250px; overflow-y: auto; margin-bottom: 15px; text-align: left; background: #f8f9fa; border: 1px solid #ddd; border-radius: 6px; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 10px;"></div>
+            <button class="btn-borrar" onclick="cerrarModalGestionNombres()" style="width: 100%; padding: 10px; font-size: 14px;">Cerrar</button>
+        </div>
+    </div>
+
+    <!-- Ventana Modal de Consulta de Imagen -->
+    <div id="modalImagenOverlay">
+        <div class="modal-caja">
+            <h3>🔍 Consultar Imagen</h3>
+            <input type="number" id="codigoModalInput" placeholder="Ingrese el código..." style="width: 100%; margin-bottom: 15px; box-sizing: border-box; text-align: center;">
+            <button class="btn-guardar" id="btnBuscarGoogle" onclick="buscarImagenGoogle()" style="width: 100%; margin-bottom: 10px;">Ver imagen en línea</button>
+            <button class="btn-borrar" onclick="cerrarModalImagen()" style="width: 100%; padding: 10px; font-size: 14px;">Cancelar</button>
+        </div>
+    </div>
+
+    <!-- Ventana Modal Flotante de Confirmación -->
+    <div id="modalConfirmacionOverlay" class="modal-overlay" style="z-index: 1000;">
+        <div class="modal-caja">
+            <h3>⚠️ Confirmación</h3>
+            <p id="textoConfirmacion" style="margin-bottom: 20px; font-size: 16px; color: #333;"></p>
+            <button class="btn-guardar" onclick="ejecutarConfirmacion()" style="width: 100%; margin-bottom: 10px;">Sí, seguro</button>
+            <button class="btn-borrar" onclick="document.getElementById('modalConfirmacionOverlay').style.display='none'" style="width: 100%; padding: 10px; font-size: 14px;">Cancelar</button>
+        </div>
+    </div>
+
+    <!-- Nueva Ventana Modal Flotante de Error de Código -->
+    <div id="modalErrorOverlay" class="modal-overlay" style="z-index: 1050;">
+        <div class="modal-caja">
+            <h3>❌ Código no encontrado</h3>
+            <p style="margin-bottom: 20px; font-size: 16px; color: #333;">Este código no se encuentra en la base de datos.</p>
+            <button class="btn-borrar" onclick="cerrarModalError()" style="width: 100%; padding: 10px; font-size: 14px;">Aceptar</button>
+        </div>
+    </div>
+
+    <!-- Ventana Modal de Autenticación para Descargar -->
+    <div id="modalLoginOverlay" class="modal-overlay" style="z-index: 1050;">
+        <div class="modal-caja">
+            <h3>🔒 Acceso Restringido</h3>
+            <p style="font-size: 14px; margin-bottom: 15px; color: #555;">Ingrese credenciales para descargar y limpiar memoria.</p>
+            
+            <input type="text" id="loginUsuario" placeholder="Usuario" style="width: 100%; margin-bottom: 10px; box-sizing: border-box; text-align: center; text-transform: lowercase;">
+            <input type="password" id="loginClave" placeholder="Contraseña" style="width: 100%; margin-bottom: 15px; box-sizing: border-box; text-align: center;">
+            
+            <button class="btn-guardar" onclick="verificarLogin()" style="width: 100%; margin-bottom: 10px;">Acceder</button>
+            <button class="btn-borrar" onclick="cerrarModalLogin()" style="width: 100%; padding: 10px; font-size: 14px;">Cancelar</button>
+            
+            <p id="loginError" style="color: #dc3545; font-size: 13px; margin-top: 10px; display: none; font-weight: bold;">❌ Credenciales incorrectas</p>
+        </div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js";
+        import { getFirestore, collection, addDoc, onSnapshot, orderBy, query, serverTimestamp, deleteDoc, doc, writeBatch, getDocs, limit, getDoc, setDoc, startAfter } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyCzZFPcSUPwWYIe4w3IW7pDluIchGMqWoU",
+            authDomain: "inventario-web-57600.firebaseapp.com",
+            projectId: "inventario-web-57600",
+            storageBucket: "inventario-web-57600.firebasestorage.app",
+            messagingSenderId: "918058389127",
+            appId: "1:918058389127:web:5d86be464e3d80d992b222"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        
+        const colRegistros = collection(db, "registros");
+        const colUbicaciones = collection(db, "ubicaciones_diarias");
+        const colHistorial = collection(db, "historial_total");
+        const colAvisos = collection(db, "avisos");
+        const colMensajesDirectos = collection(db, "mensajes_directos");
+
+        // --- SISTEMA DE GESTIÓN DE NOMBRES ---
+        let nombresOperadores = [];
+
+        onSnapshot(doc(db, "configuracion", "operadores"), (docSnap) => {
+            if (docSnap.exists() && docSnap.data().lista) {
+                nombresOperadores = docSnap.data().lista;
+            } else {
+                nombresOperadores = []; 
+            }
+            nombresOperadores.sort(); 
+            
+            renderizarNombresSeleccion();
+            renderizarNombresGestion();
+        });
+
+        window.abrirModalNombres = () => {
+            renderizarNombresSeleccion();
+            document.getElementById('modalNombresOverlay').style.display = 'flex';
+        };
+
+        window.cerrarModalNombres = () => {
+            document.getElementById('modalNombresOverlay').style.display = 'none';
+        };
+
+        window.seleccionarNombre = (nombre) => {
+            const input = document.getElementById('nombreInput');
+            input.value = nombre;
+            sessionStorage.setItem('tempNombre', nombre);
+            window.verificarMensajesParaOperador();
+            cerrarModalNombres();
+            document.getElementById('codigoInput').focus();
+        };
+
+        const renderizarNombresSeleccion = () => {
+            const contenedor = document.getElementById('listaNombresSeleccion');
+            if (contenedor) {
+                contenedor.innerHTML = nombresOperadores.map(n =>
+                    `<button class="btn-guardar" style="width: 100%; padding: 10px; font-size: 14px; background-color: #007bff; word-break: break-word;" onclick="seleccionarNombre('${n}')">${n}</button>`
+                ).join('');
+            }
+        };
+
+        window.abrirModalGestionNombres = () => {
+            renderizarNombresGestion();
+            document.getElementById('modalGestionNombresOverlay').style.display = 'flex';
+            document.getElementById('nuevoNombreInput').focus();
+        };
+
+        window.cerrarModalGestionNombres = () => {
+            document.getElementById('modalGestionNombresOverlay').style.display = 'none';
+            document.getElementById('nuevoNombreInput').value = '';
+        };
+
+        window.agregarNombre = async () => {
+            const nuevo = document.getElementById('nuevoNombreInput').value.trim().toUpperCase();
+            if(nuevo && !nombresOperadores.includes(nuevo)) {
+                const nuevaLista = [...nombresOperadores, nuevo];
+                nuevaLista.sort();
+                
+                try {
+                    await setDoc(doc(db, "configuracion", "operadores"), { lista: nuevaLista }, { merge: true });
+                    document.getElementById('nuevoNombreInput').value = '';
+                    document.getElementById('nuevoNombreInput').focus();
+                } catch (error) {
+                    alert("Error al guardar en la nube: " + error.message);
+                }
+            } else if (nombresOperadores.includes(nuevo)) {
+                alert("El nombre ya existe en la lista.");
+            }
+        };
+
+        window.eliminarNombre = async (index) => {
+            if (!confirm("¿Desea eliminar este operador?")) return;
+            const nuevaLista = [...nombresOperadores];
+            nuevaLista.splice(index, 1);
+            
+            try {
+                await setDoc(doc(db, "configuracion", "operadores"), { lista: nuevaLista }, { merge: true });
+            } catch (error) {
+                alert("Error al eliminar en la nube: " + error.message);
+            }
+        };
+
+        const renderizarNombresGestion = () => {
+            const contenedor = document.getElementById('listaNombresGestion');
+            const contador = document.getElementById('contadorOperadores');
+            if (contador) contador.innerText = `(${nombresOperadores.length})`;
+
+            if (contenedor) {
+                contenedor.innerHTML = nombresOperadores.map((n, index) =>
+                    `<div style="display: flex; justify-content: space-between; align-items: center; padding: 8px; background: white; border: 1px solid #ccc; border-radius: 4px;">
+                        <span style="font-weight: bold; color: #333; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-right: 4px;" title="${n}">${n}</span>
+                        <button class="btn-borrar" onclick="eliminarNombre(${index})" style="padding: 4px 6px; font-size: 11px; margin: 0; min-width: 65px;">❌ Eliminar</button>
+                    </div>`
+                ).join('');
+            }
+        };
+
+        const CACHE_KEY = "checkMapaUbicaciones";
+        let mapaUbicaciones = {};
+        const cacheGuardada = localStorage.getItem(CACHE_KEY);
+        if (cacheGuardada) {
+            try { mapaUbicaciones = JSON.parse(cacheGuardada); } catch(e) {}
+        }
+        const guardarCacheLocal = () => {
+            localStorage.setItem(CACHE_KEY, JSON.stringify(mapaUbicaciones));
+        };
+
+        let mensajesDirectosPendientes = [];
+        let idMensajeMostradoActual = null;
+
+        let totalProductos = 0;
+        const actualizarStatusDb = (mensaje = null) => {
+            const status = document.getElementById('statusDb');
+            if (mensaje) {
+                status.innerHTML = mensaje;
+            } else {
+                status.innerHTML = `✅ ${totalProductos} productos.`;
+            }
+        };
+
+        actualizarStatusDb("⏳ Contando...");
+        getDocs(colUbicaciones).then(snapshot => {
+            totalProductos = snapshot.size;
+            actualizarStatusDb();
+        }).catch(error => {
+            console.error("Error obteniendo total:", error);
+            actualizarStatusDb("✅ Base conectada.");
+        });
+
+        const nombreInput = document.getElementById('nombreInput');
+        if (sessionStorage.getItem('tempNombre')) {
+            nombreInput.value = sessionStorage.getItem('tempNombre');
+        }
+
+        onSnapshot(query(colMensajesDirectos, orderBy("timestamp", "asc")), (snapshot) => {
+            mensajesDirectosPendientes = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            window.verificarMensajesParaOperador();
+        });
+
+        window.verificarMensajesParaOperador = async () => {
+            const nombreActual = nombreInput.value.trim().toUpperCase();
+            const contenedor = document.getElementById('contenedorMensajeDirecto');
+            
+            if (!nombreActual) {
+                contenedor.style.display = 'none';
+                idMensajeMostradoActual = null;
+                return;
+            }
+
+            const mensajeParaMi = mensajesDirectosPendientes.find(m => m.destinatario === nombreActual);
+            
+            if (mensajeParaMi) {
+                if (mensajeParaMi.timestamp) {
+                    const ahora = Date.now();
+                    const tiempoMensaje = mensajeParaMi.timestamp.toMillis();
+                    const diferenciaMinutos = (ahora - tiempoMensaje) / (1000 * 60);
+
+                    if (diferenciaMinutos > 60) {
+                        try {
+                            await deleteDoc(doc(db, "mensajes_directos", mensajeParaMi.id));
+                        } catch (error) {
+                            console.error("Error limpiando mensaje fantasma:", error);
+                        }
+                        contenedor.style.display = 'none';
+                        idMensajeMostradoActual = null;
+                        return; 
+                    }
+                }
+
+                document.getElementById('tituloMensajeDirecto').innerHTML = `${nombreActual}, !Mensaje recibido! 📩`;
+                document.getElementById('textoMensajeDirecto').innerText = mensajeParaMi.mensaje;
+                contenedor.style.display = 'block';
+                idMensajeMostradoActual = mensajeParaMi.id;
+            } else {
+                contenedor.style.display = 'none';
+                idMensajeMostradoActual = null;
+            }
+        };
+
+        window.cerrarMensajeDirecto = async () => {
+            if (idMensajeMostradoActual) {
+                const btn = document.querySelector('#contenedorMensajeDirecto button');
+                btn.innerText = "Cerrando...";
+                btn.disabled = true;
+                try {
+                    await deleteDoc(doc(db, "mensajes_directos", idMensajeMostradoActual));
+                    document.getElementById('contenedorMensajeDirecto').style.display = 'none';
+                    idMensajeMostradoActual = null;
+                } catch (error) {
+                    alert("Error al confirmar: " + error.message);
+                } finally {
+                    btn.innerText = "Entendido, cerrar pantalla";
+                    btn.disabled = false;
+                }
+            }
+        };
+
+        window.enviarAviso = async () => {
+            const input = document.getElementById('textoAviso');
+            const mensaje = input.value.trim();
+            const nombre = nombreInput.value.trim() || "SISTEMA";
+            if(!mensaje) return;
+            try {
+                await addDoc(colAvisos, {
+                    mensaje: `${nombre.toUpperCase()}: ${mensaje}`,
+                    timestamp: serverTimestamp()
+                });
+                input.value = "";
+            } catch (e) { console.error(e); }
+        };
+
+        window.borrarTodosLosAvisos = async () => {
+            if(!confirm("¿Desea borrar todos los mensajes?")) return;
+            try {
+                const snap = await getDocs(colAvisos);
+                const batch = writeBatch(db);
+                snap.docs.forEach(d => batch.delete(d.ref));
+                await batch.commit();
+            } catch (e) { alert("Error al borrar: " + e.message); }
+        };
+
+        window.borrarAvisoIndividual = async (id) => {
+            if(!confirm("¿Desea eliminar este mensaje?")) return;
+            try {
+                await deleteDoc(doc(db, "avisos", id));
+            } catch (e) { alert("Error al eliminar: " + e.message); }
+        };
+
+        onSnapshot(query(colAvisos, orderBy("timestamp", "desc"), limit(10)), (snapshot) => {
+            const contenedor = document.getElementById('contenedorAvisos');
+            contenedor.innerHTML = "";
+            if(snapshot.empty) {
+                contenedor.innerHTML = "<i>No hay novedades.</i>";
+            } else {
+                contenedor.innerHTML = snapshot.docs.map(docSnap => `
+                    <div class="aviso-item" style="justify-content: flex-start; gap: 10px;">
+                        <button class="btn-eliminar-aviso" onclick="borrarAvisoIndividual('${docSnap.id}')" title="Eliminar mensaje">🗑️</button>
+                        <span>📢 ${docSnap.data().mensaje}</span>
+                    </div>`).join('');
+            }
+        });
+
+        window.abrirModalImagen = () => {
+            document.getElementById('modalImagenOverlay').style.display = 'flex';
+            document.getElementById('codigoModalInput').focus();
+        };
+
+        window.cerrarModalImagen = () => {
+            document.getElementById('modalImagenOverlay').style.display = 'none';
+            document.getElementById('codigoModalInput').value = '';
+        };
+
+        window.cerrarModalError = () => {
+            document.getElementById('modalErrorOverlay').style.display = 'none';
+            document.getElementById('codigoInput').value = '';
+            document.getElementById('codigoInput').focus();
+        };
+
+        window.buscarImagenGoogle = async () => {
+            const cod = document.getElementById('codigoModalInput').value.trim();
+            if (!cod) return alert("Por favor, ingrese un código para buscar.");
+            
+            const btnBuscar = document.getElementById('btnBuscarGoogle');
+            btnBuscar.innerText = "Consultando a la nube...";
+            btnBuscar.disabled = true;
+
+            try {
+                const docRef = doc(db, "ubicaciones_diarias", cod);
+                const docSnap = await getDoc(docRef);
+
+                if (docSnap.exists()) {
+                    const data = docSnap.data();
+                    const descripcion = data.descripcion || ""; 
+                    let queryTerm = cod;
+
+                    if (descripcion !== "") {
+                        queryTerm = `${cod} ${descripcion}`;
+                    } else {
+                        alert("⚠️ El código fue encontrado en la nube, pero aún no tiene una descripción guardada (vuelve a subir tu Excel para actualizar).");
+                    }
+                    
+                    const url = `https://www.google.com/search?tbm=isch&q=${encodeURIComponent(queryTerm)}`;
+                    window.open(url, '_blank');
+                    cerrarModalImagen();
+                } else {
+                    alert("❌ Código no encontrado en la base de datos.");
+                }
+            } catch (error) {
+                alert("Error de conexión al consultar la base de datos: " + error.message);
+            } finally {
+                btnBuscar.innerText = "Ver imagen en línea";
+                btnBuscar.disabled = false;
+            }
+        };
+
+        let callbackConfirmacion = null;
+
+        window.mostrarModalConfirmacion = (cantidad, callback) => {
+            document.getElementById('textoConfirmacion').innerHTML = `¿Estás seguro de pedir <strong style="color: #dc3545; font-size: 1.5em; background-color: #f8d7da; padding: 2px 8px; border-radius: 5px;">${cantidad}</strong> unidades de este código?`;
+            document.getElementById('modalConfirmacionOverlay').style.display = 'flex';
+            
+            setTimeout(() => document.querySelector('#modalConfirmacionOverlay .btn-guardar').focus(), 10);
+            
+            callbackConfirmacion = callback;
+        };
+
+        window.ejecutarConfirmacion = () => {
+            document.getElementById('modalConfirmacionOverlay').style.display = 'none';
+            if (callbackConfirmacion) {
+                callbackConfirmacion();
+                callbackConfirmacion = null; 
+            }
+        };
+
+        window.guardarDatos = async () => {
+            const codigoInput = document.getElementById('codigoInput');
+            const cantidadInput = document.getElementById('cantidadInput');
+            const nombre = nombreInput.value.trim().toUpperCase();
+            const codigo = codigoInput.value.trim();
+            const cantidad = parseInt(cantidadInput.value, 10);
+
+            if (!nombre) return alert("Por favor, selecciona un operador dando clic en el campo 'operador / check'.");
+            if (!codigo || isNaN(cantidad)) return alert("Llena todos los campos.");
+            if (cantidad <= 0) return alert("La cantidad debe ser mayor a cero.");
+            if (codigo.length > 6) return alert("El código no puede tener más de 6 dígitos.");
+            if (cantidadInput.value.length > 2) return alert("La cantidad no puede tener más de 2 dígitos.");
+
+            let ubicacion = mapaUbicaciones[codigo];
+
+            if (!ubicacion) {
+                try {
+                    const docSnap = await getDoc(doc(db, "ubicaciones_diarias", codigo));
+                    if (docSnap.exists()) {
+                        ubicacion = docSnap.data().ubicacion;
+                        mapaUbicaciones[codigo] = ubicacion;
+                        guardarCacheLocal(); 
+                    } else {
+                        document.getElementById('modalErrorOverlay').style.display = 'flex';
+                        setTimeout(() => document.querySelector('#modalErrorOverlay button').focus(), 10);
+                        return;
+                    }
+                } catch (error) { return alert("Error conectando a la base de datos."); }
+            }
+
+            if (cantidad > 9) {
+                window.mostrarModalConfirmacion(cantidad, () => {
+                    procesarGuardadoSincrono(nombre, codigo, cantidad, ubicacion, codigoInput, cantidadInput);
+                });
+                return; 
+            }
+
+            procesarGuardadoSincrono(nombre, codigo, cantidad, ubicacion, codigoInput, cantidadInput);
+        };
+
+        const procesarGuardadoSincrono = (nombre, codigo, cantidad, ubicacion, codigoInput, cantidadInput) => {
+            const data = { nombre, codigo, cantidad, ubicacion, timestamp: serverTimestamp() };
+            
+            codigoInput.value = '';
+            cantidadInput.value = '1';
+            codigoInput.focus(); 
+
+            Promise.all([
+                addDoc(colRegistros, data),
+                addDoc(colHistorial, data)
+            ]).catch(e => alert("Error al guardar: " + e.message));
+        };
+
+        window.limpiarTodoVista = async () => {
+            if(!confirm("¿Desea borrar TODOS los registros de la lista actual?")) return;
+            const btn = document.querySelector('.btn-borrar-todo');
+            if(btn){ btn.innerText = "⏳ Borrando..."; btn.disabled = true; }
+            try {
+                const querySnapshot = await getDocs(colRegistros);
+                if (querySnapshot.empty) return;
+                let batch = writeBatch(db);
+                let count = 0;
+                for (const docSnap of querySnapshot.docs) {
+                    batch.delete(docSnap.ref);
+                    count++;
+                    if (count === 450) { await batch.commit(); batch = writeBatch(db); count = 0; }
+                }
+                if (count > 0) await batch.commit();
+            } catch (error) { alert("Error: " + error.message); }
+            finally { if(btn){ btn.innerText = "🗑️ Limpiar Vista"; btn.disabled = false; } }
+        };
+
+        window.descargarYLimpiarHistorial = async () => {
+            const btn = document.querySelector('.btn-descargar');
+            if(btn){ btn.innerText = "⏳ Extrayendo datos..."; btn.disabled = true; }
+            try {
+                let datosParaExcel = [];
+                let documentosABorrar = [];
+                let ultimoDocumento = null;
+                let hayMasDatos = true;
+                const limiteLote = 1000;
+
+                while (hayMasDatos) {
+                    let q;
+                    if (ultimoDocumento) {
+                        q = query(colHistorial, orderBy("timestamp", "asc"), startAfter(ultimoDocumento), limit(limiteLote));
+                    } else {
+                        q = query(colHistorial, orderBy("timestamp", "asc"), limit(limiteLote));
+                    }
+
+                    const querySnapshot = await getDocs(q);
+
+                    if (querySnapshot.empty) {
+                        hayMasDatos = false;
+                        break;
+                    }
+
+                    querySnapshot.forEach((docSnap) => {
+                        const d = docSnap.data();
+                        datosParaExcel.push({
+                            "Nombre": d.nombre, "Codigo": d.codigo, "Ubicacion": d.ubicacion, "Cantidad": d.cantidad,
+                            "Fecha/Hora": d.timestamp ? d.timestamp.toDate().toLocaleString() : ""
+                        });
+                        documentosABorrar.push(docSnap.ref);
+                    });
+
+                    ultimoDocumento = querySnapshot.docs[querySnapshot.docs.length - 1];
+
+                    if (querySnapshot.size < limiteLote) {
+                        hayMasDatos = false;
+                    }
+                }
+
+                if (datosParaExcel.length === 0) {
+                    if(btn){ btn.innerText = "📥 Descargar reporte y liberar memoria"; btn.disabled = false; }
+                    return alert("No hay datos en el historial.");
+                }
+
+                if(btn){ btn.innerText = "⏳ Generando Excel..."; }
+                const ws = XLSX.utils.json_to_sheet(datosParaExcel);
+                const wb = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(wb, ws, "Reporte");
+                XLSX.writeFile(wb, `Reporte_Final_${new Date().getTime()}.xlsx`);
+
+                if(btn){ btn.innerText = "⏳ Borrando historial..."; }
+                let batch = writeBatch(db);
+                let count = 0;
+                
+                for (const ref of documentosABorrar) {
+                    batch.delete(ref);
+                    count++;
+                    if (count === 450) { 
+                        await batch.commit(); 
+                        batch = writeBatch(db); 
+                        count = 0; 
+                    }
+                }
+                if (count > 0) await batch.commit();
+
+            } catch (error) { 
+                alert("Error: " + error.message); 
+            } finally { 
+                if(btn){ btn.innerText = "📥 Descargar reporte y liberar memoria"; btn.disabled = false; } 
+            }
+        };
+
+        window.borrarDato = async (id, nombre, codigo) => {
+            if(confirm(`¿Desea entregar?\nOperador: ${nombre}\nCódigo: ${codigo}`)) {
+                await deleteDoc(doc(db, "registros", id));
+            }
+        }
+
+        onSnapshot(query(colRegistros, orderBy("timestamp", "desc")), (snapshot) => {
+            const tabla = document.getElementById('tablaCuerpo');
+            
+            document.getElementById('contadorPendientes').innerText = `📋 ${snapshot.size}`;
+            
+            const filasHTML = snapshot.docs.map(docSnap => {
+                const data = docSnap.data();
+                // AJUSTE 3: La tabla ahora solo muestra la hora, liberando muchísimo ancho horizontal.
+                const fecha = data.timestamp ? data.timestamp.toDate().toLocaleTimeString('es-EC', {hour: '2-digit', minute:'2-digit'}) : "...";
+                
+                const esError = data.ubicacion === "No encontrado";
+                const claseFila = esError ? 'class="fila-error"' : '';
+                const claseTag = esError ? 'ubicacion-tag ubicacion-error' : 'ubicacion-tag';
+
+                return `<tr ${claseFila}>
+                    <td>${data.nombre}</td>
+                    <td><strong>${data.codigo}</strong></td>
+                    <td><span class="${claseTag}">${data.ubicacion}</span></td>
+                    <td><span class="ubicacion-tag">${data.cantidad}</span></td>
+                    <td style="font-size: 11px;">${fecha}</td>
+                    <td><button class="btn-borrar" onclick="borrarDato('${docSnap.id}', '${data.nombre}', '${data.codigo}')">Entregar</button></td>
+                </tr>`;
+            }).join('');
+
+            tabla.innerHTML = filasHTML;
+        });
+
+        window.procesarYSubirExcel = async () => {
+            // Función preservada según instrucciones para evitar errores en consola aunque el botón haya sido removido
+        };
+
+        window.abrirModalLogin = () => {
+            document.getElementById('modalLoginOverlay').style.display = 'flex';
+            document.getElementById('loginUsuario').value = '';
+            document.getElementById('loginClave').value = '';
+            document.getElementById('loginError').style.display = 'none';
+            document.getElementById('loginUsuario').focus();
+        };
+
+        window.cerrarModalLogin = () => {
+            document.getElementById('modalLoginOverlay').style.display = 'none';
+        };
+
+        window.verificarLogin = () => {
+            const usuario = document.getElementById('loginUsuario').value.trim().toLowerCase();
+            const clave = document.getElementById('loginClave').value.trim();
+
+            if (usuario === 'oriflame' && clave === '2026') {
+                cerrarModalLogin();
+                descargarYLimpiarHistorial(); 
+            } else {
+                document.getElementById('loginError').style.display = 'block';
+            }
+        };
+
+        document.getElementById('loginUsuario').addEventListener('keydown', (e) => { 
+            if (e.key === 'Enter') document.getElementById('loginClave').focus(); 
+        });
+        document.getElementById('loginClave').addEventListener('keydown', (e) => { 
+            if (e.key === 'Enter') window.verificarLogin(); 
+        });
+
+        document.getElementById('nuevoNombreInput').addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') window.agregarNombre();
+        });
+
+        document.getElementById('codigoInput').addEventListener('keydown', async (e) => { 
+            if (e.key === 'Enter') {
+                const cod = document.getElementById('codigoInput').value.trim();
+                if (cod !== "") {
+                    if (!mapaUbicaciones[cod]) {
+                        actualizarStatusDb("⏳ Consultando...");
+                        try {
+                            const docRef = doc(db, "ubicaciones_diarias", cod);
+                            const docSnap = await getDoc(docRef);
+                            if (docSnap.exists()) {
+                                mapaUbicaciones[cod] = docSnap.data().ubicacion;
+                                guardarCacheLocal(); 
+                                actualizarStatusDb();
+                            } else {
+                                actualizarStatusDb();
+                                document.getElementById('modalErrorOverlay').style.display = 'flex';
+                                setTimeout(() => document.querySelector('#modalErrorOverlay button').focus(), 10);
+                                return;
+                            }
+                        } catch (error) {
+                            actualizarStatusDb("❌ Error de conexión.");
+                            return; 
+                        }
+                    }
+                    document.getElementById('cantidadInput').value = '1';
+                    document.getElementById('cantidadInput').focus(); 
+                    document.getElementById('cantidadInput').select(); 
+                }
+            }
+        });
+        
+        document.getElementById('cantidadInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') window.guardarDatos(); });
+        document.getElementById('textoAviso').addEventListener('keydown', (e) => { if (e.key === 'Enter') window.enviarAviso(); });
+        document.getElementById('codigoModalInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') window.buscarImagenGoogle(); });
+
+        document.addEventListener('contextmenu', e => e.preventDefault());
+        document.addEventListener('keydown', e => {
+            if (e.ctrlKey && (e.key === "u" || e.key === "U")) {
+                e.preventDefault();
+                window.abrirModalGestionNombres();
+                return;
+            }
+            if (e.key === "F12" || (e.ctrlKey && (e.key === "s" || e.shiftKey && (e.key === "I" || e.key === "J")))) {
+                e.preventDefault();
+            }
+        });
+        
+        setInterval(() => {
+            const relojElemento = document.getElementById('relojActual');
+            if(relojElemento) relojElemento.innerText = new Date().toLocaleTimeString('es-EC');
+        }, 1000);
+        document.getElementById('relojActual').innerText = new Date().toLocaleTimeString('es-EC');
+        
+        // --- Lógica de Pantalla de Bloqueo por Actualización ---
+        let estabaActualizando = false;
+        onSnapshot(doc(db, "configuracion", "estado_sistema"), (docSnap) => {
+            if (docSnap.exists()) {
+                const data = docSnap.data();
+
+                const cacheTimestamp = localStorage.getItem("timestamp_cache") || 0;
+                if (data.ultima_actualizacion && data.ultima_actualizacion > cacheTimestamp) {
+                    localStorage.removeItem(CACHE_KEY); 
+                    localStorage.setItem("timestamp_cache", data.ultima_actualizacion); 
+                    mapaUbicaciones = {}; 
+                }
+
+                if (data.actualizando === true) {
+                    document.getElementById('updateOverlay').style.display = 'flex';
+                    estabaActualizando = true;
+                } else {
+                    if (estabaActualizando) {
+                        localStorage.removeItem(CACHE_KEY);
+                        localStorage.setItem("timestamp_cache", data.ultima_actualizacion || Date.now());
+                        mapaUbicaciones = {}; 
+                        window.location.reload();
+                    } else {
+                        document.getElementById('updateOverlay').style.display = 'none';
+                    }
+                }
+            }
+        });
+
+    </script>
+</body>
+</html>
