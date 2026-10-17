@@ -1,0 +1,816 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>📊 Dashboard - Buscador</title>
+    <!-- Librería para exportar a Excel -->
+    <script src="https://cdn.sheetjs.com/xlsx-0.19.3/package/dist/xlsx.full.min.js"></script>
+    <style>
+        /* Estilos base originales intactos */
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 1200px; margin: 0 auto; padding: 20px; background-color: #f0f2f5; }
+        h1 { text-align: center; color: #333; font-size: 26px; }
+        
+        .header-panel { 
+            background: white; 
+            padding: 20px; 
+            border-radius: 10px; 
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1); 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+
+        .stats-box {
+            background: #e9ecef;
+            padding: 15px 25px;
+            border-radius: 8px;
+            text-align: center;
+            border: 1px solid #ced4da;
+        }
+
+        .stats-box h3 { margin: 0; font-size: 14px; color: #495057; }
+        .stats-box span { font-size: 24px; font-weight: bold; color: #007bff; }
+
+        button { padding: 12px 25px; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; color: white; transition: 0.2s; white-space: nowrap; }
+        
+        /* Contenedor de botones de borrado */
+        .header-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+        
+        /* Estilos de botones de limpieza */
+        .btn-limpiar-historial { background-color: #dc3545; }
+        .btn-limpiar-historial:hover { background-color: #c82333; }
+        .btn-limpiar-historial:active { transform: scale(0.98); }
+        .btn-limpiar-historial:disabled { background-color: #6c757d; cursor: not-allowed; }
+
+        .btn-limpiar-no-encontrados { background-color: #fd7e14; }
+        .btn-limpiar-no-encontrados:hover { background-color: #e86e10; }
+        .btn-limpiar-no-encontrados:active { transform: scale(0.98); }
+        .btn-limpiar-no-encontrados:disabled { background-color: #6c757d; cursor: not-allowed; }
+
+        .filters-panel {
+            background: white; 
+            padding: 15px; 
+            border-radius: 10px; 
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1); 
+            display: flex; 
+            gap: 10px; 
+            flex-wrap: wrap; 
+            margin-bottom: 20px; 
+            align-items: center;
+        }
+        .filter-input {
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+            flex: 1;
+            min-width: 150px;
+        }
+        
+        /* Contenedor del filtro de fecha y estilo del botón borrador */
+        .date-filter-container {
+            display: flex;
+            align-items: center;
+            flex: 1;
+            min-width: 180px;
+            gap: 5px;
+        }
+        .date-filter-container .filter-input {
+            flex: 1;
+            min-width: 0;
+        }
+        .btn-clear-date {
+            background-color: #6c757d;
+            border: none;
+            color: white;
+            padding: 10px 14px;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+        }
+        .btn-clear-date:hover {
+            background-color: #5a6268;
+        }
+        .btn-clear-date svg {
+            width: 18px;
+            height: 18px;
+            fill: currentColor;
+        }
+
+        .btn-exportar { background-color: #28a745; }
+        .btn-exportar:hover { background-color: #218838; }
+        .btn-borrar-individual { background-color: #dc3545; padding: 6px 12px; font-size: 12px; }
+        
+        .pagination { display: flex; justify-content: center; align-items: center; gap: 15px; margin-top: 20px; }
+        .pagination button { background: #6c757d; padding: 8px 15px; font-size: 14px; }
+        .pagination button:disabled { background: #ccc; cursor: not-allowed; }
+        #pageInfo { font-weight: bold; color: #555; }
+
+        .table-container { 
+            overflow-x: auto; 
+            overflow-y: auto; 
+            max-height: 55vh; 
+            background: white; 
+            border-radius: 10px; 
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05); 
+        }
+        table { width: 100%; border-collapse: collapse; min-width: 600px; }
+        th, td { padding: 12px 15px; text-align: left; border-bottom: 1px solid #eee; }
+        
+        th { 
+            background-color: #343a40; 
+            color: white; 
+            position: sticky; 
+            top: 0; 
+            z-index: 10; 
+            box-shadow: 0 2px 2px -1px rgba(0,0,0,0.2); 
+        }
+
+        /* Clase para resaltar visualmente los No Encontrados */
+        .fila-alerta { background-color: #fff0f0; }
+        .fila-alerta td { border-bottom: 1px solid #ffcccc; }
+        .fila-alerta:hover { background-color: #ffe5e5; }
+        
+        .ubicacion-tag { background: #fff3cd; color: #856404; padding: 4px 8px; border-radius: 4px; font-weight: bold; font-size: 13px; border: 1px solid #ffeeba; }
+        .responsable-tag { background: #d4edda; color: #155724; padding: 4px 8px; border-radius: 4px; font-weight: bold; font-size: 13px; border: 1px solid #c3e6cb; }
+
+        @media (max-width: 768px) {
+            .header-panel { flex-direction: column; text-align: center; }
+            .header-actions { width: 100%; flex-direction: column; }
+            .btn-limpiar-historial, .btn-limpiar-no-encontrados, .btn-exportar { width: 100%; }
+            .filter-input { width: 100%; flex: none; }
+            .date-filter-container { width: 100%; flex: none; }
+        }
+
+        #adminLoginOverlay {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.9);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+        }
+        .login-box {
+            background: white;
+            padding: 35px 25px;
+            border-radius: 12px;
+            text-align: center;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+            width: 90%;
+            max-width: 350px;
+        }
+        .login-box h2 { margin-top: 0; color: #333; font-size: 22px; margin-bottom: 5px; }
+        .login-box p { color: #666; font-size: 14px; margin-bottom: 20px; }
+        .login-box input {
+            width: 100%; padding: 12px; margin-bottom: 15px; border: 2px solid #ddd; border-radius: 8px; font-size: 16px; text-align: center; box-sizing: border-box; outline: none; transition: border-color 0.2s;
+        }
+        .login-box input:focus { border-color: #007bff; }
+        .login-box button { width: 100%; padding: 15px; background-color: #343a40; color: white; border: none; border-radius: 8px; font-size: 16px; cursor: pointer; font-weight: bold; transition: background-color 0.2s; }
+        .login-box button:hover { background-color: #23272b; }
+    </style>
+</head>
+<body>
+
+    <!-- MODAL DE LOGIN ADMIN -->
+    <div id="adminLoginOverlay">
+        <div class="login-box">
+            <h2>🔒 Acceso Restringido</h2>
+            <p>Solo personal autorizado</p>
+            <input type="text" id="userAdmin" placeholder="Usuario" autocomplete="off">
+            <input type="password" id="passAdmin" placeholder="Contraseña">
+            <button onclick="verificarLogin()" id="btnLogin">Ingresar</button>
+        </div>
+    </div>
+
+    <!-- EL DASHBOARD ESTÁ OCULTO INICIALMENTE -->
+    <div id="mainDashboard" style="display: none;">
+        
+        <h1>📊 Dashboard Devolución Productos</h1>
+
+        <div class="header-panel">
+            <div style="display: flex; gap: 15px; flex-wrap: wrap; justify-content: center;">
+                <div class="stats-box">
+                    <h3>Total Escaneos Actualmente</h3>
+                    <span id="contadorTotal">0</span>
+                </div>
+                <div class="stats-box" style="cursor: pointer; background: #fff3cd; border-color: #ffeeba; transition: transform 0.2s;" onclick="filtrarNoEncontrados()" onmouseover="this.style.transform='scale(1.03)'" onmouseout="this.style.transform='scale(1)'" title="Clic para filtrar únicamente los No Encontrados">
+                    <h3>No Encontrados</h3>
+                    <span id="contadorNoEncontrados" style="color: #856404;">0</span>
+                </div>
+            </div>
+            <div class="header-actions">
+                <button class="btn-limpiar-no-encontrados" onclick="limpiarNoEncontrados()">⚠️ Borrar No Encontrados</button>
+                <button class="btn-limpiar-historial" onclick="limpiarHistorialCompleto()">🗑️ Borrar Registros</button>
+            </div>
+        </div>
+
+        <div class="filters-panel">
+            <!-- OPTIMIZACIÓN 2: oninput con Debounce en lugar de onkeydown Enter -->
+            <input type="text" id="searchInput" class="filter-input" placeholder="🔍 Buscar código" oninput="buscarConDebounce()">
+            
+            <select id="responsableFilter" class="filter-input" onchange="aplicarFiltros()">
+                <option value="">👤 Todos los operadores</option>
+            </select>
+            
+            <!-- Contenedor con botón de icono borrador -->
+            <div class="date-filter-container">
+                <input type="date" id="dateFilter" class="filter-input" onchange="aplicarFiltros()" title="Filtrar por fecha">
+                <button type="button" class="btn-clear-date" onclick="limpiarFiltroFecha()" title="Borrar filtro de fecha para ver todos los días">
+                    <!-- Icono SVG de Borrador -->
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16">
+                        <path d="M8.086 2.207a2 2 0 0 1 2.828 0l3.879 3.879a2 2 0 0 1 0 2.828l-5.5 5.5A2 2 0 0 1 7.879 15H5.12a2 2 0 0 1-1.414-.586l-2.5-2.5a2 2 0 0 1 0-2.828l6.879-6.879zm2.121.707a1 1 0 0 0-1.414 0L4.16 7.547l5.293 5.293 4.633-4.633a1 1 0 0 0 0-1.414l-3.879-3.879zM8.746 13.547 3.453 8.254 1.914 9.793a1 1 0 0 0 0 1.414l2.5 2.5a1 1 0 0 0 .707.293H7.88a1 1 0 0 0 .707-.293l.16-.16z"/>
+                    </svg>
+                </button>
+            </div>
+            
+            <button class="btn-exportar" onclick="exportarExcel()">📥 Descargar Excel</button>
+        </div>
+
+        <div class="table-container">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Responsable</th>
+                        <th>Producto</th>
+                        <th>Código</th>
+                        <th>Ubicación</th>
+                        <th>Fecha y Hora</th>
+                        <th>Acción</th>
+                    </tr>
+                </thead>
+                <tbody id="tablaDashboard">
+                    <tr><td colspan="6" style="text-align: center;">Esperando inicio de sesión...</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="pagination">
+            <button id="btnPrev" onclick="cargarPagina(-1)" disabled>Anterior</button>
+            <span id="pageInfo">Página 1</span>
+            <button id="btnNext" onclick="cargarPagina(1)" disabled>Siguiente</button>
+        </div>
+    </div>
+
+    <script type="module">
+        // Se agregaron getDoc y setDoc para la optimización de lecturas
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-app.js";
+        import { getFirestore, collection, onSnapshot, orderBy, query, writeBatch, getDocs, deleteDoc, doc, getDoc, setDoc, limit, startAfter, endBefore, limitToLast, getCountFromServer, where } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-firestore.js";
+
+        // --- OPTIMIZACIÓN 5: CONFIGURACIÓN INDEXEDDB (Caché Local) ---
+        const DB_NAME = "DashboardCacheDB";
+        function initDB() {
+            return new Promise((resolve, reject) => {
+                const req = indexedDB.open(DB_NAME, 1);
+                req.onupgradeneeded = (e) => {
+                    e.target.result.createObjectStore("registros", { keyPath: "id" });
+                };
+                req.onsuccess = () => resolve(req.result);
+                req.onerror = () => reject(req.error);
+            });
+        }
+        async function guardarEnCache(datos) {
+            try {
+                const dbIDB = await initDB();
+                const tx = dbIDB.transaction("registros", "readwrite");
+                const store = tx.objectStore("registros");
+                store.clear();
+                datos.forEach(item => {
+                    let cacheItem = { ...item };
+                    if (cacheItem.timestamp && typeof cacheItem.timestamp.toDate === 'function') {
+                        cacheItem.timestampMs = cacheItem.timestamp.toDate().getTime();
+                        delete cacheItem.timestamp; 
+                    }
+                    store.put(cacheItem);
+                });
+            } catch (e) { console.log("Error caché:", e); }
+        }
+        async function cargarDeCache() {
+            try {
+                const dbIDB = await initDB();
+                return new Promise((resolve) => {
+                    const tx = dbIDB.transaction("registros", "readonly");
+                    const store = tx.objectStore("registros");
+                    const req = store.getAll();
+                    req.onsuccess = () => {
+                        let datos = req.result.map(d => {
+                            if (d.timestampMs) d.timestamp = { toDate: () => new Date(d.timestampMs) };
+                            return d;
+                        });
+                        datos.sort((a,b) => b.timestampMs - a.timestampMs);
+                        resolve(datos);
+                    };
+                    req.onerror = () => resolve([]);
+                });
+            } catch (e) { return []; }
+        }
+
+        // --- LÓGICA DE LOGIN ---
+        window.onload = () => {
+            const userInput = document.getElementById('userAdmin');
+            if(userInput) userInput.focus();
+        };
+
+        window.verificarLogin = () => {
+            const user = document.getElementById('userAdmin').value.trim().toLowerCase();
+            const pass = document.getElementById('passAdmin').value.trim();
+
+            if (user === "oriflame" && pass === "2026") {
+                document.getElementById('adminLoginOverlay').style.display = "none";
+                document.getElementById('mainDashboard').style.display = "block";
+                
+                inicializarDashboard();
+            } else {
+                alert("❌ Usuario o contraseña incorrectos.");
+                document.getElementById('passAdmin').value = '';
+                document.getElementById('passAdmin').focus();
+            }
+        };
+
+        document.getElementById('userAdmin').addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                document.getElementById('passAdmin').focus();
+            }
+        });
+
+        document.getElementById('passAdmin').addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                window.verificarLogin();
+            }
+        });
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyB_13cedG5q03t9FUgTkaVwiTyD1pzD0F8",
+            authDomain: "verproductos-40224.firebaseapp.com",
+            projectId: "verproductos-40224",
+            storageBucket: "verproductos-40224.firebasestorage.app",
+            messagingSenderId: "903739745189",
+            appId: "1:903739745189:web:b608225acc87550c85be4c"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const colHistorial = collection(db, "historial_registros");
+
+        let datosFiltrados = [];
+        let paginaActual = 1;
+        const registrosPorPagina = 50;
+        let primerDoc = null;
+        let ultimoDoc = null;
+        let unsubscribe = null;
+        
+        // Variables globales para optimización
+        let operadoresGuardados = new Set();
+        let totalDocsParaPaginacion = 0; // Para paginación matemática
+
+        // --- OPTIMIZACIÓN 1: Lectura eficiente de Operadores ---
+        async function cargarOperadoresConfig() {
+            try {
+                const docRef = doc(db, "configuracion", "operadores");
+                const docSnap = await getDoc(docRef);
+                if (docSnap.exists() && docSnap.data().lista) {
+                    operadoresGuardados = new Set(docSnap.data().lista);
+                    actualizarDropdownResponsables(operadoresGuardados);
+                }
+            } catch(e) { console.log("Info: Documento de configuración no encontrado, se creará dinámicamente."); }
+        }
+
+        async function agregarOperadorGlobal(nombre) {
+            if (!nombre || operadoresGuardados.has(nombre)) return;
+            operadoresGuardados.add(nombre);
+            actualizarDropdownResponsables(operadoresGuardados);
+            try {
+                // Guarda en segundo plano el nuevo operador para no leer 500 registros la próxima vez
+                await setDoc(doc(db, "configuracion", "operadores"), { lista: Array.from(operadoresGuardados) }, { merge: true });
+            } catch(e) {}
+        }
+
+        // --- OPTIMIZACIÓN 3: Matemáticas de Paginación ---
+        function actualizarTextoPaginacion() {
+            if(totalDocsParaPaginacion === 0) {
+                document.getElementById('pageInfo').innerText = `Página 1 de 1`;
+                document.getElementById('btnPrev').disabled = true;
+                document.getElementById('btnNext').disabled = true;
+                return;
+            }
+            const totalPaginas = Math.ceil(totalDocsParaPaginacion / registrosPorPagina) || 1;
+            document.getElementById('pageInfo').innerText = `Página ${paginaActual} de ${totalPaginas}`;
+            document.getElementById('btnPrev').disabled = (paginaActual <= 1);
+            document.getElementById('btnNext').disabled = (paginaActual >= totalPaginas);
+        }
+
+        async function actualizarEstadisticas() {
+            try {
+                const searchTxt = document.getElementById('searchInput').value.trim();
+                const respFiltro = document.getElementById('responsableFilter').value;
+                const fechaFiltro = document.getElementById('dateFilter').value; 
+
+                let restriccionesBase = [];
+                
+                if (searchTxt) {
+                    if (searchTxt.toLowerCase() === 'no encontrado') restriccionesBase.push(where("nombre", "==", "No encontrado"));
+                    else restriccionesBase.push(where("codigo", "==", searchTxt));
+                }
+                if (respFiltro) restriccionesBase.push(where("responsable", "==", respFiltro));
+                if (fechaFiltro) {
+                    const start = new Date(fechaFiltro + 'T00:00:00');
+                    const end = new Date(fechaFiltro + 'T23:59:59');
+                    restriccionesBase.push(where("timestamp", ">=", start));
+                    restriccionesBase.push(where("timestamp", "<=", end));
+                }
+
+                const qTotal = query(colHistorial, ...restriccionesBase);
+                const totalSnap = await getCountFromServer(qTotal);
+                
+                // Actualiza contadores visuales y variables globales de paginación
+                totalDocsParaPaginacion = totalSnap.data().count;
+                document.getElementById('contadorTotal').innerText = totalDocsParaPaginacion;
+                actualizarTextoPaginacion();
+
+                let countNoEnc = 0;
+                if (searchTxt.toLowerCase() === 'no encontrado') {
+                    countNoEnc = totalDocsParaPaginacion; 
+                } else {
+                    let restNoEnc = [where("nombre", "==", "No encontrado")];
+                    if (respFiltro) restNoEnc.push(where("responsable", "==", respFiltro));
+                    if (fechaFiltro) {
+                        const start = new Date(fechaFiltro + 'T00:00:00');
+                        const end = new Date(fechaFiltro + 'T23:59:59');
+                        restNoEnc.push(where("timestamp", ">=", start));
+                        restNoEnc.push(where("timestamp", "<=", end));
+                    }
+                    const qNoEnc = query(colHistorial, ...restNoEnc);
+                    const noEncSnap = await getCountFromServer(qNoEnc);
+                    countNoEnc = noEncSnap.data().count;
+                }
+                document.getElementById('contadorNoEncontrados').innerText = countNoEnc;
+                
+            } catch (error) {
+                console.error("Error al obtener estadísticas:", error);
+            }
+        }
+
+        async function inicializarDashboard() {
+            // Asigna automáticamente la fecha actual
+            const hoy = new Date();
+            const yyyy = hoy.getFullYear();
+            const mm = String(hoy.getMonth() + 1).padStart(2, '0');
+            const dd = String(hoy.getDate()).padStart(2, '0');
+            document.getElementById('dateFilter').value = `${yyyy}-${mm}-${dd}`;
+
+            // Cargar operadores optimizadamente sin iterar 500 registros
+            cargarOperadoresConfig();
+
+            // Renderizar instantáneamente desde Caché Local (IndexedDB) para eliminar parpadeo de carga
+            const cache = await cargarDeCache();
+            if (cache && cache.length > 0) {
+                datosFiltrados = cache;
+                renderizarTabla(); 
+            }
+
+            cargarPagina(0); 
+        }
+
+        function actualizarDropdownResponsables(setResponsables) {
+            const select = document.getElementById('responsableFilter');
+            const valorActual = select.value;
+            select.innerHTML = '<option value="">👤 Todos los operadores</option>';
+            
+            // Ordenar alfabéticamente para mayor facilidad
+            const operadoresOrdenados = Array.from(setResponsables).sort();
+            
+            operadoresOrdenados.forEach(resp => {
+                const option = document.createElement('option');
+                option.value = resp;
+                option.textContent = resp;
+                select.appendChild(option);
+            });
+            select.value = valorActual; 
+        }
+
+        // --- OPTIMIZACIÓN 2: Debounce de Búsqueda ---
+        let debounceTimer;
+        window.buscarConDebounce = () => {
+            clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(() => {
+                aplicarFiltros();
+            }, 500); // Espera 500ms al dejar de teclear
+        };
+
+        window.limpiarFiltroFecha = () => {
+            document.getElementById('dateFilter').value = '';
+            aplicarFiltros();
+        };
+
+        window.aplicarFiltros = () => {
+            cargarPagina(0);
+        };
+
+        window.filtrarNoEncontrados = () => {
+            const searchInput = document.getElementById('searchInput');
+            if (searchInput.value.toLowerCase() === 'no encontrado') {
+                searchInput.value = '';
+            } else {
+                searchInput.value = 'no encontrado';
+            }
+            aplicarFiltros();
+        };
+
+        window.cargarPagina = (direccion) => {
+            const searchTxt = document.getElementById('searchInput').value.trim();
+            const respFiltro = document.getElementById('responsableFilter').value;
+            const fechaFiltro = document.getElementById('dateFilter').value; 
+
+            let restricciones = [];
+
+            if (searchTxt) {
+                if (searchTxt.toLowerCase() === 'no encontrado') {
+                    restricciones.push(where("nombre", "==", "No encontrado"));
+                } else {
+                    restricciones.push(where("codigo", "==", searchTxt));
+                }
+            }
+
+            if (respFiltro) restricciones.push(where("responsable", "==", respFiltro));
+            
+            if (fechaFiltro) {
+                const start = new Date(fechaFiltro + 'T00:00:00');
+                const end = new Date(fechaFiltro + 'T23:59:59');
+                restricciones.push(where("timestamp", ">=", start));
+                restricciones.push(where("timestamp", "<=", end));
+            }
+
+            restricciones.push(orderBy("timestamp", "desc"));
+
+            if (direccion === 1 && ultimoDoc) {
+                restricciones.push(startAfter(ultimoDoc));
+                restricciones.push(limit(registrosPorPagina));
+                paginaActual++;
+            } else if (direccion === -1 && primerDoc) {
+                restricciones.push(endBefore(primerDoc));
+                restricciones.push(limitToLast(registrosPorPagina));
+                paginaActual--;
+            } else {
+                restricciones.push(limit(registrosPorPagina));
+                paginaActual = 1;
+            }
+
+            const q = query(colHistorial, ...restricciones);
+
+            if (unsubscribe) unsubscribe();
+
+            // Solo mostrar "Cargando..." si no hay datos de caché previos
+            if (datosFiltrados.length === 0) {
+                document.getElementById('tablaDashboard').innerHTML = `<tr><td colspan="6" style="text-align: center;">Cargando registros...</td></tr>`;
+            }
+
+            unsubscribe = onSnapshot(q, (snap) => {
+                datosFiltrados = [];
+                snap.docs.forEach(d => {
+                    const data = d.data();
+                    data.id = d.id; 
+                    datosFiltrados.push(data);
+                    
+                    // Asegurarnos de aprender operadores nuevos dinámicamente
+                    if (data.responsable) agregarOperadorGlobal(data.responsable);
+                });
+
+                if (snap.docs.length > 0) {
+                    primerDoc = snap.docs[0];
+                    ultimoDoc = snap.docs[snap.docs.length - 1];
+                } else {
+                    primerDoc = null;
+                    ultimoDoc = null;
+                }
+
+                // Guardamos la primera página en caché para arranques rápidos futuros
+                if (paginaActual === 1 && !searchTxt && !respFiltro) {
+                    guardarEnCache(datosFiltrados);
+                }
+
+                renderizarTabla();
+                actualizarEstadisticas();
+            }, (error) => {
+                console.error("Alerta de índices en Firebase:", error);
+                document.getElementById('tablaDashboard').innerHTML = `<tr><td colspan="6" style="text-align: center; color: red;">Error: No se pudo filtrar. (Abre la consola para crear el índice compuesto requerido).</td></tr>`;
+            });
+        };
+
+        function renderizarTabla() {
+            const tabla = document.getElementById('tablaDashboard');
+            let contenidoHTML = "";
+
+            if (datosFiltrados.length === 0) {
+                tabla.innerHTML = `<tr><td colspan="6" style="text-align: center; color: #666;">No se encontraron registros.</td></tr>`;
+                actualizarTextoPaginacion();
+                return;
+            }
+
+            datosFiltrados.forEach(data => {
+                const nombreCorto = (data.nombre && data.nombre.length > 25) ? data.nombre.substring(0, 25) + "..." : (data.nombre || "");
+                
+                let fechaHora = "...";
+                if (data.timestamp) {
+                    const dateObj = data.timestamp.toDate();
+                    fechaHora = dateObj.toLocaleDateString() + " " + dateObj.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+                }
+                
+                // Resaltamos visualmente los No Encontrados
+                const esNoEncontrado = (data.nombre && data.nombre.toLowerCase() === 'no encontrado');
+                const claseFila = esNoEncontrado ? 'class="fila-alerta"' : '';
+                
+                contenidoHTML += `
+                    <tr ${claseFila}>
+                        <td><span class="responsable-tag">👤 ${data.responsable || 'DESCONOCIDO'}</span></td>
+                        <td>${nombreCorto}</td>
+                        <td><strong>${data.codigo}</strong></td>
+                        <td><span class="ubicacion-tag">${data.ubicacion || ''}</span></td>
+                        <td style="font-size: 12px; color: #555;">${fechaHora}</td>
+                        <td><button class="btn-borrar-individual" onclick="borrarRegistroIndividual('${data.id}')">X</button></td>
+                    </tr>`;
+            });
+            
+            tabla.innerHTML = contenidoHTML;
+            actualizarTextoPaginacion();
+        }
+
+        window.borrarRegistroIndividual = async (id) => {
+            if (confirm("¿Estás seguro de eliminar este registro?")) {
+                await deleteDoc(doc(db, "historial_registros", id));
+                setTimeout(() => { actualizarEstadisticas(); }, 500);
+            }
+        };
+
+        window.limpiarNoEncontrados = async () => {
+            if (!confirm("⚠️ ADVERTENCIA: ¿Estás seguro de eliminar TODOS los registros 'No encontrados' de la base de datos?")) return;
+            
+            const btn = document.querySelector('.btn-limpiar-no-encontrados');
+            const textoOriginal = btn.innerText;
+            btn.innerText = "⏳ Borrando...";
+            btn.disabled = true;
+
+            try {
+                const qNoEnc = query(colHistorial, where("nombre", "==", "No encontrado"));
+                const querySnapshot = await getDocs(qNoEnc);
+                const docsArray = querySnapshot.docs;
+                
+                if (docsArray.length === 0) {
+                    alert("No hay registros 'No encontrados' para eliminar.");
+                    btn.innerText = textoOriginal;
+                    btn.disabled = false;
+                    return;
+                }
+                
+                let batch = writeBatch(db);
+                let contadorBatch = 0;
+
+                for (let i = 0; i < docsArray.length; i++) {
+                    batch.delete(docsArray[i].ref);
+                    contadorBatch++;
+                    
+                    if (contadorBatch >= 400) {
+                        await batch.commit();
+                        batch = writeBatch(db);
+                        contadorBatch = 0;
+                    }
+                }
+                if (contadorBatch > 0) await batch.commit();
+                
+                setTimeout(() => { actualizarEstadisticas(); }, 500);
+                alert(`Se eliminaron ${docsArray.length} registros 'No encontrados' correctamente.`);
+            } catch (error) {
+                alert("Hubo un error al intentar limpiar los registros.");
+            } finally {
+                btn.innerText = textoOriginal;
+                btn.disabled = false;
+            }
+        };
+
+        window.limpiarHistorialCompleto = async () => {
+            if (!confirm("⚠️ ADVERTENCIA: ¿Estás seguro de eliminar TODO el historial?")) return;
+            
+            const btn = document.querySelector('.btn-limpiar-historial');
+            const textoOriginal = btn.innerText;
+            btn.innerText = "⏳ Borrando...";
+            btn.disabled = true;
+
+            try {
+                const querySnapshot = await getDocs(colHistorial);
+                const docsArray = querySnapshot.docs;
+                
+                let batch = writeBatch(db);
+                let contadorBatch = 0;
+
+                for (let i = 0; i < docsArray.length; i++) {
+                    batch.delete(docsArray[i].ref);
+                    contadorBatch++;
+                    
+                    if (contadorBatch >= 400) {
+                        await batch.commit();
+                        batch = writeBatch(db);
+                        contadorBatch = 0;
+                    }
+                }
+                if (contadorBatch > 0) await batch.commit();
+                
+                document.getElementById('contadorTotal').innerText = '0';
+                document.getElementById('contadorNoEncontrados').innerText = '0';
+                alert("Historial del dashboard eliminado correctamente.");
+            } catch (error) {
+                alert("Hubo un error al intentar limpiar el historial.");
+            } finally {
+                btn.innerText = textoOriginal;
+                btn.disabled = false;
+            }
+        };
+
+        window.exportarExcel = async () => {
+            const btn = document.querySelector('.btn-exportar');
+            const textoOriginal = btn.innerText;
+            
+            // --- OPTIMIZACIÓN 4: Prevención de Colapso Visual UI ---
+            btn.innerText = "⏳ Procesando archivo...";
+            btn.disabled = true;
+            document.body.style.cursor = 'wait';
+            
+            // Pausa obligatoria para permitir que el navegador actualice la UI y el texto del botón antes de congelarse
+            await new Promise(resolve => setTimeout(resolve, 150)); 
+
+            try {
+                const searchTxt = document.getElementById('searchInput').value.trim();
+                const respFiltro = document.getElementById('responsableFilter').value;
+                const fechaFiltro = document.getElementById('dateFilter').value;
+
+                let restricciones = [];
+
+                if (searchTxt) {
+                    if (searchTxt.toLowerCase() === 'no encontrado') restricciones.push(where("nombre", "==", "No encontrado"));
+                    else restricciones.push(where("codigo", "==", searchTxt));
+                }
+                if (respFiltro) restricciones.push(where("responsable", "==", respFiltro));
+                if (fechaFiltro) {
+                    const start = new Date(fechaFiltro + 'T00:00:00');
+                    const end = new Date(fechaFiltro + 'T23:59:59');
+                    restricciones.push(where("timestamp", ">=", start));
+                    restricciones.push(where("timestamp", "<=", end));
+                }
+                
+                restricciones.push(orderBy("timestamp", "desc"));
+                restricciones.push(limit(5000)); 
+
+                const qExcel = query(colHistorial, ...restricciones);
+                const snapExcel = await getDocs(qExcel);
+
+                if (snapExcel.empty) {
+                    alert("No hay datos para exportar con los filtros actuales.");
+                    btn.innerText = textoOriginal;
+                    btn.disabled = false;
+                    document.body.style.cursor = 'default';
+                    return;
+                }
+                
+                const dataParaExcel = snapExcel.docs.map(d => {
+                    const val = d.data();
+                    let fechaHora = "";
+                    if (val.timestamp) {
+                        const dateObj = val.timestamp.toDate();
+                        fechaHora = dateObj.toLocaleDateString() + " " + dateObj.toLocaleTimeString();
+                    }
+                    return {
+                        "Responsable": val.responsable || "DESCONOCIDO",
+                        "Producto": val.nombre || "",
+                        "Código": val.codigo,
+                        "Ubicación": val.ubicacion || "",
+                        "Fecha y Hora": fechaHora
+                    };
+                });
+
+                const worksheet = XLSX.utils.json_to_sheet(dataParaExcel);
+                const workbook = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(workbook, worksheet, "Historial_Filtrado");
+                
+                const hoy = new Date().toISOString().split('T')[0];
+                XLSX.writeFile(workbook, `Reporte_Dashboard_${hoy}.xlsx`);
+
+            } catch (error) {
+                console.error("Error al exportar:", error);
+                alert("Hubo un error generando el Excel.");
+            } finally {
+                btn.innerText = textoOriginal;
+                btn.disabled = false;
+                document.body.style.cursor = 'default';
+            }
+        };
+    </script>
+</body>
+</html>

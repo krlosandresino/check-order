@@ -1,0 +1,652 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>🔍 Buscador de Productos</title>
+    <script src="https://cdn.sheetjs.com/xlsx-0.19.3/package/dist/xlsx.full.min.js"></script>
+    <style>
+        /* Estilos base originales intactos */
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 1000px; margin: 0 auto; padding: 20px; background-color: #f0f2f5; }
+        
+        .top-nav { display: flex; justify-content: flex-end; align-items: center; margin-bottom: 15px; gap: 15px; }
+        
+        .btn-logout { background-color: #6c757d; padding: 8px 15px; font-size: 13px; border-radius: 6px; border: none; color: white; font-weight: bold; cursor: pointer; transition: 0.2s; }
+        .btn-logout:hover { background-color: #5a6268; }
+
+        /* --- NUEVO: ESTILOS PARA INDICADOR DE RED --- */
+        .network-status { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: bold; background: white; padding: 6px 12px; border-radius: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); transition: 0.3s; }
+        .status-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+        .network-status.online { color: #28a745; border: 1px solid #c3e6cb; }
+        .network-status.online .status-dot { background-color: #28a745; box-shadow: 0 0 5px #28a745; }
+        .network-status.offline { color: #dc3545; border: 1px solid #f5c6cb; }
+        .network-status.offline .status-dot { background-color: #dc3545; box-shadow: 0 0 5px #dc3545; animation: blink 1s infinite; }
+        @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0.4; } 100% { opacity: 1; } }
+
+        h1 { text-align: center; color: #333; font-size: 24px; margin-top: 5px; }
+        
+        details { background: #e9ecef; border-radius: 10px; margin-bottom: 20px; border: 1px solid #adb5bd; overflow: hidden; }
+        summary { padding: 15px; cursor: pointer; font-weight: bold; background: #dee2e6; list-style: none; }
+        summary:hover { background: #ced4da; }
+        .admin-content { padding: 20px; text-align: center; border-top: 1px solid #ccc; }
+
+        .form-group { 
+            background: white; 
+            padding: 25px; 
+            border-radius: 10px; 
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1); 
+            display: flex; 
+            gap: 10px; 
+            flex-wrap: wrap; 
+            margin-bottom: 20px; 
+            align-items: center;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+        #statusDb { font-size: 14px; color: #666; width: 100%; margin-bottom: 10px; }
+        
+        input#codigoInput { 
+            padding: 12px; 
+            border: 1px solid #ddd; 
+            border-radius: 6px; 
+            font-size: 18px; 
+            flex: 2; 
+            min-width: 150px; 
+        }
+        
+        button { padding: 12px 25px; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; color: white; transition: 0.2s; white-space: nowrap; }
+        .btn-guardar { background-color: #28a745; flex: 1; }
+        .btn-borrar { background-color: #dc3545; padding: 6px 12px; font-size: 12px; }
+        .btn-limpiar { background-color: #f44336; flex: 1; }
+        .btn-admin { background-color: #6c757d; margin-top: 10px;}
+
+        button:active { transform: scale(0.98); }
+
+        .table-container { 
+            overflow-x: auto; 
+            background: white; 
+            border-radius: 10px; 
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05); 
+            -webkit-overflow-scrolling: touch; 
+        }
+        table { width: 100%; border-collapse: collapse; min-width: 500px; }
+        th, td { padding: 12px 15px; text-align: left; border-bottom: 1px solid #eee; }
+        
+        th { background-color: #007bff; color: white; }
+        
+        .ubicacion-tag { background: #fff3cd; color: #856404; padding: 4px 8px; border-radius: 4px; font-weight: bold; font-size: 13px; border: 1px solid #ffeeba; }
+
+        @media (max-width: 600px) {
+            body { padding: 10px; }
+            h1 { font-size: 20px; }
+            .form-group { padding: 15px; gap: 8px; }
+            input#codigoInput { width: 100%; flex: none; font-size: 16px; order: 1; }
+            .btn-guardar { width: 100%; flex: none; order: 2; }
+            .btn-limpiar { width: 100%; flex: none; order: 3; }
+            th, td { padding: 10px 8px; font-size: 13px; }
+            .btn-borrar { padding: 10px 15px; font-size: 14px; } 
+        }
+
+        /* --- ESTILOS PARA EL MODAL DE RESPONSABLE --- */
+        #loginOverlay {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: #f0f2f5;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+        }
+        .login-box {
+            background: white;
+            padding: 35px 25px;
+            border-radius: 12px;
+            text-align: center;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.3);
+            width: 90%;
+            max-width: 400px;
+        }
+        .login-box h2 {
+            margin-top: 0;
+            color: #333;
+            font-size: 22px;
+            margin-bottom: 10px;
+        }
+        .login-box input {
+            width: 100%;
+            padding: 15px;
+            margin: 10px 0;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 18px;
+            text-align: center;
+            font-weight: bold;
+            box-sizing: border-box;
+            outline: none;
+            text-transform: uppercase;
+            transition: border-color 0.2s;
+        }
+        .login-box input:focus {
+            border-color: #007bff;
+        }
+        .login-box button {
+            width: 100%;
+            padding: 15px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 18px;
+            cursor: pointer;
+            font-weight: bold;
+            margin-top: 15px;
+            transition: background-color 0.2s;
+        }
+        .login-box button:hover {
+            background-color: #0056b3;
+        }
+        .login-box button:disabled {
+            background-color: #6c757d;
+            cursor: not-allowed;
+        }
+        @keyframes spinUpdate { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+
+    <!-- PANTALLA DE BLOQUEO DE ACTUALIZACIÓN -->
+    <div id="updateOverlay" style="display:none; position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(15,23,42,0.95); backdrop-filter:blur(10px); z-index:99999; flex-direction:column; justify-content:center; align-items:center; text-align:center; color:white; pointer-events:all;">
+        <div style="border:6px solid rgba(255,255,255,0.1); border-top:6px solid #3b82f6; border-radius:50%; width:60px; height:60px; animation:spinUpdate 1s linear infinite; margin-bottom:20px;"></div>
+        <h2 style="margin:0; font-size:24px; color:#60a5fa; font-weight:bold; letter-spacing:1px;">RECIBIENDO ACTUALIZACIONES</h2>
+        <p style="color:#94a3b8; font-size:15px; margin-top:10px; max-width:80%;">Por favor, espera un momento. El sistema se desbloqueará automáticamente.</p>
+    </div>
+
+    <!-- MODAL DE INGRESO DE RESPONSABLE ACTUALIZADO CON PIN -->
+    <div id="loginOverlay">
+        <div class="login-box">
+            <h2>👤 Identificación Requerida</h2>
+            <p style="color: #666; font-size: 14px; margin: 0 0 15px 0;">Ingrese su usuario y PIN para acceder</p>
+            
+            <input type="text" 
+                   id="responsableInput" 
+                   placeholder="Ingrese su nombre..." 
+                   autocomplete="off" 
+                   oninput="this.value = this.value.toUpperCase()">
+                   
+            <input type="password" 
+                   id="pinInput" 
+                   placeholder="PIN de acceso..." 
+                   autocomplete="off" 
+                   inputmode="numeric">
+
+            <button onclick="ingresarResponsable()" id="loginBtn">Entrar al Sistema</button>
+        </div>
+    </div>
+
+    <!-- Navegación superior con botón de cerrar sesión y estado de red -->
+    <div class="top-nav">
+        <!-- Indicador visual de red añadido -->
+        <div id="networkStatus" class="network-status online">
+            <span class="status-dot"></span> <span class="status-text">Online</span>
+        </div>
+        <button onclick="cerrarSesion()" class="btn-logout">🔴 Cerrar Sesión</button>
+    </div>
+
+    <h1>🔍 Consulta de Ubicaciones</h1>
+
+    <details>
+        <summary>⚙️ Panel de Actualización de Ubicaciones</summary>
+        <div class="admin-content">
+            <h3>Cargar Base de Datos de Ubicaciones</h3>
+            <p style="font-size: 13px; margin-bottom: 10px;">⚠️ Al subir, se reemplazarán y actualizarán solo los códigos con cambios.</p>
+            <input type="file" id="excelInput" accept=".xlsx, .xls" style="max-width: 100%;">
+            <br>
+            <button class="btn-admin" onclick="procesarYSubirExcel()">☁️ Cargar y Actualizar Todo</button>
+            <div id="progresoCarga" style="margin-top: 10px; font-weight: bold; color: #007bff;"></div>
+        </div>
+    </details>
+
+    <div class="form-group">
+        <span id="statusDb">⏳ Conectando... <span id="nombreOperador" style="font-weight:bold; color:#007bff;"></span></span>
+        <input type="text" 
+               id="codigoInput" 
+               inputmode="numeric" 
+               pattern="[0-9]*" 
+               placeholder="Escanear código..." 
+               autofocus>
+        <button class="btn-guardar" onclick="guardarDatos()">Ingresar</button>
+        <button class="btn-limpiar" onclick="limpiarRegistros()">🗑️ Limpiar</button>
+    </div>
+
+    <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th>Producto</th>
+                    <th>Código</th>
+                    <th>Ubicación</th>
+                    <th>Hora</th>
+                    <th>Acción</th>
+                </tr>
+            </thead>
+            <tbody id="tablaCuerpo"></tbody>
+        </table>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js";
+        import { getFirestore, collection, addDoc, onSnapshot, orderBy, query, serverTimestamp, deleteDoc, doc, writeBatch, getDocs, getDoc, where, enableIndexedDbPersistence } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js";
+        // Añadido set, remove, onDisconnect para dbAuth
+        import { getDatabase, ref, get, set, remove, onDisconnect } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-database.js";
+
+        // APP PRINCIPAL (FIRESTORE - Donde se guardan las lecturas del buscador)
+        const firebaseConfig = {
+            apiKey: "AIzaSyB_13cedG5q03t9FUgTkaVwiTyD1pzD0F8",
+            authDomain: "verproductos-40224.firebaseapp.com",
+            projectId: "verproductos-40224",
+            storageBucket: "verproductos-40224.firebasestorage.app",
+            messagingSenderId: "903739745189",
+            appId: "1:903739745189:web:b608225acc87550c85be4c"
+        };
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        
+        enableIndexedDbPersistence(db).catch((err) => {
+            console.warn("Modo offline no disponible: ", err.code);
+        });
+
+        const colRegistros = collection(db, "registros");
+        const colUbicaciones = collection(db, "ubicaciones_diarias");
+        const colHistorial = collection(db, "historial_registros");
+
+        // APP SECUNDARIA (REALTIME DB - Para verificar los usuarios creados en usuarios.html)
+        const authConfig = {
+            apiKey: "AIzaSyBxLmlqxw7vNHGiI4mjljUGgZQ5a2VPXuA",
+            databaseURL: "https://inventariopicking-default-rtdb.firebaseio.com",
+            projectId: "inventariopicking"
+        };
+        const authApp = initializeApp(authConfig, "AuthApp");
+        const authDb = getDatabase(authApp);
+
+        let nombreResponsable = "";
+
+        // --- LÓGICA: Monitor de Estado de Red ---
+        function updateNetworkStatus() {
+            const statusDiv = document.getElementById('networkStatus');
+            const statusText = statusDiv.querySelector('.status-text');
+            
+            if (navigator.onLine) {
+                statusDiv.className = 'network-status online';
+                statusText.innerText = 'Online';
+                statusDiv.title = 'Conectado a Internet - Sincronizado';
+            } else {
+                statusDiv.className = 'network-status offline';
+                statusText.innerText = 'Offline';
+                statusDiv.title = 'Sin Internet - Guardando en caché local';
+            }
+        }
+        window.addEventListener('online', updateNetworkStatus);
+        window.addEventListener('offline', updateNetworkStatus);
+        // --- FIN Monitor de Estado de Red ---
+
+        // Función para registrar la sesión activa
+        window.registrarUsuarioActivo = (nombre) => {
+            const refActivo = ref(authDb, 'usuarios_activos/' + nombre);
+            set(refActivo, true);
+            onDisconnect(refActivo).remove();
+        };
+
+        window.onload = () => {
+            updateNetworkStatus(); 
+            
+            const nombreGuardado = sessionStorage.getItem('operadorGuardado');
+            if (nombreGuardado) {
+                nombreResponsable = nombreGuardado;
+                
+                // Reconectar en usuarios activos si entró automáticamente
+                window.registrarUsuarioActivo(nombreResponsable);
+                
+                document.getElementById('loginOverlay').style.display = 'none';
+                document.getElementById('nombreOperador').innerText = ` | Operador: ${nombreResponsable}`;
+                document.getElementById('codigoInput').focus();
+            } else {
+                document.getElementById('responsableInput').focus();
+            }
+        };
+
+        // --- NUEVA LÓGICA DE LOGIN CONECTADA A LA BASE DE DATOS DE USUARIOS ---
+        window.ingresarResponsable = async () => {
+            const inputUser = document.getElementById('responsableInput');
+            const inputPin = document.getElementById('pinInput');
+            const valorIngresado = inputUser.value.trim().toUpperCase();
+            const pinIngresado = inputPin.value.trim();
+
+            if(valorIngresado === "" || pinIngresado === "") {
+                alert("Por favor, ingrese un usuario y PIN para continuar.");
+                if (valorIngresado === "") inputUser.focus();
+                else inputPin.focus();
+                return;
+            }
+
+            const btn = document.getElementById('loginBtn');
+            const textoOriginal = btn.innerText;
+            btn.innerText = "Verificando...";
+            btn.disabled = true;
+
+            try {
+                // Consulta el usuario en la base de datos de inventariopicking
+                const userRef = ref(authDb, 'usuarios_auth/' + valorIngresado);
+                const snapshot = await get(userRef);
+                
+                if (snapshot.exists()) {
+                    const data = snapshot.val();
+                    
+                    if (data.pin === pinIngresado) {
+                        // Verifica si tiene acceso otorgado para el Buscador
+                        if (data.accesos && data.accesos.buscador) {
+                            nombreResponsable = valorIngresado;
+                            
+                            // Guarda la sesión temporalmente
+                            sessionStorage.setItem('operadorGuardado', nombreResponsable);
+                            
+                            // REGISTRAR USUARIO ACTIVO Y CONFIGURAR DESCONEXIÓN
+                            window.registrarUsuarioActivo(nombreResponsable);
+                            
+                            document.getElementById('loginOverlay').style.display = 'none';
+                            document.getElementById('nombreOperador').innerText = ` | Operador: ${nombreResponsable}`;
+                            document.getElementById('codigoInput').focus();
+                        } else {
+                            alert("Acceso denegado: No tienes permisos para usar el Buscador de Productos.");
+                            inputPin.value = "";
+                            inputPin.focus();
+                        }
+                    } else {
+                        alert("PIN incorrecto.");
+                        inputPin.value = "";
+                        inputPin.focus();
+                    }
+                } else {
+                    alert("Usuario no encontrado.");
+                    inputUser.value = "";
+                    inputPin.value = "";
+                    inputUser.focus();
+                }
+            } catch (error) {
+                console.error("Error al verificar credenciales:", error);
+                alert("Error al conectar con el servidor. Revisa tu conexión a internet.");
+            } finally {
+                btn.innerText = textoOriginal;
+                btn.disabled = false;
+            }
+        };
+        
+        window.cerrarSesion = () => {
+            if(confirm("¿Deseas cerrar la sesión del operador actual?")) {
+                if (nombreResponsable) {
+                    // Borramos al usuario activo antes de recargar la página
+                    remove(ref(authDb, 'usuarios_activos/' + nombreResponsable)).then(() => {
+                        sessionStorage.removeItem('operadorGuardado');
+                        location.reload();
+                    });
+                } else {
+                    sessionStorage.removeItem('operadorGuardado');
+                    location.reload();
+                }
+            }
+        };
+
+        let totalProductos = 0;
+        async function cargarBase() {
+            const statusDb = document.getElementById('statusDb');
+            const spanOperador = document.getElementById('nombreOperador');
+            
+            // Mensaje temporal mientras cuenta
+            statusDb.innerHTML = `⏳ Contando productos... `;
+            if (spanOperador) statusDb.appendChild(spanOperador);
+            statusDb.style.color = "#666";
+
+            try {
+                const snapshot = await getDocs(colUbicaciones);
+                totalProductos = snapshot.size;
+                
+                statusDb.innerHTML = `✅ Base cargada: ${totalProductos} productos disponibles. `;
+                if (spanOperador) statusDb.appendChild(spanOperador);
+                statusDb.style.color = "green";
+            } catch (error) {
+                console.error("Error obteniendo total:", error);
+                // Si falla, volvemos al estado de escáner listo
+                statusDb.innerHTML = `✅ Escáner listo y conectado. `;
+                if (spanOperador) statusDb.appendChild(spanOperador);
+                statusDb.style.color = "green";
+            }
+        }
+        cargarBase();
+
+        function reproducirBeep() {
+            try {
+                const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                const oscillator = audioCtx.createOscillator();
+                const gainNode = audioCtx.createGain();
+                
+                oscillator.type = 'sine'; 
+                oscillator.frequency.setValueAtTime(880, audioCtx.currentTime); 
+                oscillator.frequency.exponentialRampToValueAtTime(1200, audioCtx.currentTime + 0.05); 
+                
+                gainNode.gain.setValueAtTime(0, audioCtx.currentTime);
+                gainNode.gain.linearRampToValueAtTime(0.15, audioCtx.currentTime + 0.02);
+                gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.25);
+                
+                oscillator.connect(gainNode);
+                gainNode.connect(audioCtx.destination);
+                
+                oscillator.start();
+                oscillator.stop(audioCtx.currentTime + 0.3); 
+            } catch (error) {
+                console.log("Audio no soportado.");
+            }
+        }
+
+        window.guardarDatos = async () => {
+            const input = document.getElementById('codigoInput');
+            const cod = input.value.trim();
+            if(!cod) return;
+            
+            input.value = '';
+            input.focus();
+
+            try {
+                const docRef = doc(db, "ubicaciones_diarias", cod);
+                const docSnap = await getDoc(docRef);
+                
+                let nombreProd = "No encontrado";
+                let ubicacionProd = "No encontrado";
+
+                if (docSnap.exists()) {
+                    nombreProd = docSnap.data().nombre;
+                    ubicacionProd = docSnap.data().ubicacion;
+                }
+
+                const dataAGuardar = {
+                    codigo: cod,
+                    nombre: nombreProd,
+                    ubicacion: ubicacionProd,
+                    responsable: nombreResponsable,
+                    timestamp: serverTimestamp()
+                };
+
+                await addDoc(colRegistros, dataAGuardar);
+                await addDoc(colHistorial, dataAGuardar);
+
+                reproducirBeep(); 
+
+            } catch (e) { 
+                alert("Error al guardar. Si estás offline, se sincronizará luego."); 
+            }
+        };
+
+        window.limpiarRegistros = async (esAutomatico = false) => {
+            if (!esAutomatico && !confirm("¿Borrar todos los registros almacenados?")) return;
+            
+            const batch = writeBatch(db);
+            
+            if (esAutomatico) {
+                const tiempoLimite = new Date(Date.now() - 1800000); 
+                const consultaAntiguos = query(colRegistros, where("timestamp", "<", tiempoLimite));
+                const snapAntiguos = await getDocs(consultaAntiguos);
+                
+                snapAntiguos.forEach((docSnap) => batch.delete(docSnap.ref));
+            } else {
+                const querySnapshot = await getDocs(colRegistros);
+                querySnapshot.forEach((docSnap) => batch.delete(docSnap.ref));
+            }
+            
+            await batch.commit();
+            if (esAutomatico) console.log("Revisión en segundo plano: Registros antiguos eliminados.");
+        };
+
+        document.getElementById('codigoInput').addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') { e.preventDefault(); window.guardarDatos(); }
+        });
+
+        document.getElementById('responsableInput').addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') { e.preventDefault(); document.getElementById('pinInput').focus(); }
+        });
+
+        document.getElementById('pinInput').addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') { e.preventDefault(); window.ingresarResponsable(); }
+        });
+
+        onSnapshot(query(colRegistros, orderBy("timestamp", "desc")), (snap) => {
+            const tabla = document.getElementById('tablaCuerpo');
+            let contenidoHTML = "";
+            
+            snap.docs.forEach(d => {
+                const data = d.data();
+                const nombreCorto = data.nombre.length > 20 ? data.nombre.substring(0, 20) + "..." : data.nombre;
+                const fecha = data.timestamp ? data.timestamp.toDate().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : "...";
+                
+                contenidoHTML += `
+                    <tr>
+                        <td>${nombreCorto}</td>
+                        <td><strong>${data.codigo}</strong></td>
+                        <td><span class="ubicacion-tag">${data.ubicacion}</span></td>
+                        <td style="font-size: 11px;">${fecha}</td>
+                        <td><button class="btn-borrar" onclick="borrarDato('${d.id}')">X</button></td>
+                    </tr>`;
+            });
+            
+            tabla.innerHTML = contenidoHTML;
+        });
+
+        window.borrarDato = async (id) => { if(confirm("¿Eliminar código?")) await deleteDoc(doc(db, "registros", id)); };
+
+        // NUEVA LÓGICA DE ACTUALIZACIÓN DELTA
+        window.procesarYSubirExcel = async () => {
+            const fileInput = document.getElementById('excelInput');
+            const progreso = document.getElementById('progresoCarga');
+            
+            if(!fileInput.files[0]) return alert("Selecciona un archivo.");
+            
+            try {
+                progreso.innerText = "⏳ Consultando base actual en la nube...";
+
+                const querySnapshot = await getDocs(colUbicaciones);
+                const datosActuales = {};
+                querySnapshot.forEach(docSnap => {
+                    datosActuales[docSnap.id] = docSnap.data();
+                });
+
+                progreso.innerText = "⏳ Leyendo Excel...";
+                
+                const reader = new FileReader();
+                reader.onload = async (e) => {
+                    try {
+                        const data = new Uint8Array(e.target.result);
+                        const workbook = XLSX.read(data, {type: 'array'});
+                        const jsonData = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
+
+                        let operacionesBatch = [];
+
+                        jsonData.forEach(f => {
+                            const c = String(f.Codigo || f["Código Producto"] || f.codigo || "").trim();
+                            const n = String(f.Nombre || f["Descripción"] || f.Producto || f.nombre || "Sin nombre").trim();
+                            const u = String(f.Ubicacion || f.Caja || f.ubicacion || "No encontrado").trim();
+
+                            if (c) {
+                                const actual = datosActuales[c];
+                                if (!actual || actual.nombre !== n || actual.ubicacion !== u) {
+                                    operacionesBatch.push({
+                                        codigo: c,
+                                        data: { nombre: n, ubicacion: u }
+                                    });
+                                }
+                            }
+                        });
+
+                        if (operacionesBatch.length === 0) {
+                            progreso.innerText = "✅ ¡Todo está al día! Ningún código cambió.";
+                            progreso.style.color = "green";
+                            return;
+                        }
+
+                        progreso.innerText = `⏳ Subiendo ${operacionesBatch.length} actualizaciones...`;
+                        
+                        let batch = writeBatch(db);
+                        let contadorBatch = 0;
+                        let totalProcesados = 0;
+
+                        for (const op of operacionesBatch) {
+                            batch.set(doc(colUbicaciones, op.codigo), op.data, { merge: true });
+                            contadorBatch++;
+                            totalProcesados++;
+
+                            if(contadorBatch >= 400) {
+                                await batch.commit();
+                                batch = writeBatch(db);
+                                contadorBatch = 0;
+                                progreso.innerText = `☁️ Subiendo: ${totalProcesados} / ${operacionesBatch.length}`;
+                            }
+                        }
+                        if (contadorBatch > 0) await batch.commit();
+
+                        progreso.innerText = "✅ ¡Carga Completa!";
+                        progreso.style.color = "green";
+                        alert(`Éxito: Se actualizaron ${totalProcesados} productos.`);
+                        location.reload();
+
+                    } catch (error) {
+                        console.error(error);
+                        progreso.innerText = "❌ Error: " + error.message;
+                        progreso.style.color = "red";
+                        alert("Error: " + error.message);
+                    }
+                };
+                reader.readAsArrayBuffer(fileInput.files[0]);
+            } catch (err) {
+                progreso.innerText = "❌ Error de conexión: " + err.message;
+            }
+        };
+
+        setInterval(() => {
+            window.limpiarRegistros(true); 
+        }, 600000); 
+
+        // --- Lógica de Pantalla de Bloqueo por Actualización ---
+        let estabaActualizando = false;
+        onSnapshot(doc(db, "configuracion", "estado_sistema"), (docSnap) => {
+            if (docSnap.exists() && docSnap.data().actualizando === true) {
+                document.getElementById('updateOverlay').style.display = 'flex';
+                estabaActualizando = true;
+            } else {
+                if (estabaActualizando) {
+                    window.location.reload();
+                } else {
+                    document.getElementById('updateOverlay').style.display = 'none';
+                }
+            }
+        });
+        
+    </script>
+</body>
+</html>
