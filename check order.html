@@ -125,9 +125,9 @@
         <!-- Campo de operador modificado: solo lectura y con evento click -->
         <input type="text" id="nombreInput" placeholder="operador / check" readonly onclick="abrirModalNombres()">
         
-        <input type="number" id="codigoInput" placeholder="Código" min="0" onkeydown="if(['-','+','e',',','.'].includes(event.key)) event.preventDefault();" oninput="if(this.value < 0) this.value = ''; if(this.value.length > 6) this.value = this.value.slice(0, 6);">
+        <input type="number" id="codigoInput" inputmode="numeric" pattern="[0-9]*" placeholder="Código" min="0" onkeydown="if(['-','+','e',',','.'].includes(event.key)) event.preventDefault();" oninput="if(this.value < 0) this.value = ''; if(this.value.length > 6) this.value = this.value.slice(0, 6);">
         <!-- SE AÑADIÓ value="1" A LA LÍNEA DE ABAJO -->
-        <input type="number" id="cantidadInput" placeholder="Cantidad" value="1" min="1" onkeydown="if(['-','+','e',',','.'].includes(event.key)) event.preventDefault();" oninput="if(this.value < 0) this.value = ''; if(this.value.length > 2) this.value = this.value.slice(0, 2);">
+        <input type="number" id="cantidadInput" inputmode="numeric" pattern="[0-9]*" placeholder="Cantidad" value="1" min="1" onkeydown="if(['-','+','e',',','.'].includes(event.key)) event.preventDefault();" oninput="if(this.value < 0) this.value = ''; if(this.value.length > 2) this.value = this.value.slice(0, 2);">
         
         <button class="btn-guardar" onclick="guardarDatos()">+ Agregar</button>
         <button class="btn-descargar" onclick="abrirModalLogin()">📥 Descargar reporte y liberar memoria</button>
@@ -185,7 +185,7 @@
     <div id="modalImagenOverlay">
         <div class="modal-caja">
             <h3>🔍 Consultar Imagen</h3>
-            <input type="number" id="codigoModalInput" placeholder="Ingrese el código..." style="width: 100%; margin-bottom: 15px; box-sizing: border-box; text-align: center;">
+            <input type="number" id="codigoModalInput" inputmode="numeric" pattern="[0-9]*" placeholder="Ingrese el código..." style="width: 100%; margin-bottom: 15px; box-sizing: border-box; text-align: center;">
             <button class="btn-guardar" id="btnBuscarGoogle" onclick="buscarImagenGoogle()" style="width: 100%; margin-bottom: 10px;">Ver imagen en línea</button>
             <button class="btn-borrar" onclick="cerrarModalImagen()" style="width: 100%; padding: 10px; font-size: 14px;">Cancelar</button>
         </div>
@@ -228,7 +228,7 @@
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js";
-        import { getFirestore, collection, addDoc, onSnapshot, orderBy, query, serverTimestamp, deleteDoc, doc, writeBatch, getDocs, limit, getDoc, setDoc, startAfter } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js";
+        import { getFirestore, collection, addDoc, onSnapshot, orderBy, query, serverTimestamp, deleteDoc, doc, writeBatch, getDocs, limit, getDoc, setDoc, startAfter, enableIndexedDbPersistence } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyCzZFPcSUPwWYIe4w3IW7pDluIchGMqWoU",
@@ -241,6 +241,10 @@
 
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
+
+        enableIndexedDbPersistence(db).catch((err) => {
+            console.warn("Persistencia IndexedDB no disponible:", err.code);
+        });
         
         const colRegistros = collection(db, "registros");
         const colUbicaciones = collection(db, "ubicaciones_diarias");
@@ -351,15 +355,46 @@
         };
         // -------------------------------------
 
-        // Optimización Segura: Caché de ubicaciones para que no consulte a Firebase si ya buscó ese código antes
+        // Optimización Segura: Caché de ubicaciones con TTL de 48 horas para refrescar inteligentemente
         const CACHE_KEY = "checkMapaUbicaciones";
+        const CACHE_TTL_KEY = "checkMapaUbicaciones_ttl";
+        const TTL_MS = 48 * 60 * 60 * 1000; // 48 horas
         let mapaUbicaciones = {};
+        let mapaUbicacionesTtl = {};
+
         const cacheGuardada = localStorage.getItem(CACHE_KEY);
+        const cacheTtlGuardada = localStorage.getItem(CACHE_TTL_KEY);
         if (cacheGuardada) {
             try { mapaUbicaciones = JSON.parse(cacheGuardada); } catch(e) {}
         }
+        if (cacheTtlGuardada) {
+            try { mapaUbicacionesTtl = JSON.parse(cacheTtlGuardada); } catch(e) {}
+        }
+
+        // Limpieza inicial de códigos con más de 48 horas en caché
+        const ahoraInit = Date.now();
+        let huboLimpiezaTtl = false;
+        Object.keys(mapaUbicaciones).forEach(cod => {
+            if (!mapaUbicacionesTtl[cod] || (ahoraInit - mapaUbicacionesTtl[cod]) > TTL_MS) {
+                delete mapaUbicaciones[cod];
+                delete mapaUbicacionesTtl[cod];
+                huboLimpiezaTtl = true;
+            }
+        });
+
         const guardarCacheLocal = () => {
             localStorage.setItem(CACHE_KEY, JSON.stringify(mapaUbicaciones));
+            localStorage.setItem(CACHE_TTL_KEY, JSON.stringify(mapaUbicacionesTtl));
+        };
+        if (huboLimpiezaTtl) guardarCacheLocal();
+
+        const obtenerUbicacionDeCache = (cod) => {
+            if (mapaUbicaciones[cod] && mapaUbicacionesTtl[cod] && (Date.now() - mapaUbicacionesTtl[cod]) <= TTL_MS) {
+                return mapaUbicaciones[cod];
+            }
+            delete mapaUbicaciones[cod];
+            delete mapaUbicacionesTtl[cod];
+            return null;
         };
 
         let mensajesDirectosPendientes = [];
@@ -582,7 +617,7 @@
             if (codigo.length > 6) return alert("El código no puede tener más de 6 dígitos.");
             if (cantidadInput.value.length > 2) return alert("La cantidad no puede tener más de 2 dígitos.");
 
-            let ubicacion = mapaUbicaciones[codigo];
+            let ubicacion = obtenerUbicacionDeCache(codigo);
 
             if (!ubicacion) {
                 try {
@@ -590,6 +625,7 @@
                     if (docSnap.exists()) {
                         ubicacion = docSnap.data().ubicacion;
                         mapaUbicaciones[codigo] = ubicacion;
+                        mapaUbicacionesTtl[codigo] = Date.now();
                         guardarCacheLocal(); 
                     } else {
                         document.getElementById('modalErrorOverlay').style.display = 'flex';
@@ -809,7 +845,9 @@
                 progreso.innerText = `✅ ¡Listo! Se actualizaron ${operacionesBatch.length} códigos correctamente.`;
                 
                 localStorage.removeItem(CACHE_KEY); 
+                localStorage.removeItem(CACHE_TTL_KEY);
                 mapaUbicaciones = {};
+                mapaUbicacionesTtl = {};
 
             } catch (error) { 
                 progreso.innerText = "❌ Error: " + error.message; 
@@ -856,13 +894,14 @@
             if (e.key === 'Enter') {
                 const cod = document.getElementById('codigoInput').value.trim();
                 if (cod !== "") {
-                    if (!mapaUbicaciones[cod]) {
+                    if (!obtenerUbicacionDeCache(cod)) {
                         actualizarStatusDb("⏳ Consultando...");
                         try {
                             const docRef = doc(db, "ubicaciones_diarias", cod);
                             const docSnap = await getDoc(docRef);
                             if (docSnap.exists()) {
                                 mapaUbicaciones[cod] = docSnap.data().ubicacion;
+                                mapaUbicacionesTtl[cod] = Date.now();
                                 guardarCacheLocal(); 
                                 actualizarStatusDb();
                             } else {
@@ -915,8 +954,10 @@
                 const cacheTimestamp = localStorage.getItem("timestamp_cache") || 0;
                 if (data.ultima_actualizacion && data.ultima_actualizacion > cacheTimestamp) {
                     localStorage.removeItem(CACHE_KEY); // Borramos el caché viejo
+                    localStorage.removeItem(CACHE_TTL_KEY);
                     localStorage.setItem("timestamp_cache", data.ultima_actualizacion); // Guardamos la nueva fecha
                     mapaUbicaciones = {}; // Limpiamos la memoria local
+                    mapaUbicacionesTtl = {};
                 }
 
                 // 2. Lógica normal de bloqueo en tiempo real
@@ -927,8 +968,10 @@
                     if (estabaActualizando) {
                         // Limpieza del LocalStorage añadida aquí
                         localStorage.removeItem(CACHE_KEY);
+                        localStorage.removeItem(CACHE_TTL_KEY);
                         localStorage.setItem("timestamp_cache", data.ultima_actualizacion || Date.now());
                         mapaUbicaciones = {}; 
+                        mapaUbicacionesTtl = {};
                         window.location.reload();
                     } else {
                         document.getElementById('updateOverlay').style.display = 'none';

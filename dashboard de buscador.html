@@ -214,8 +214,8 @@
         </div>
 
         <div class="filters-panel">
-            <!-- OPTIMIZACIÓN 2: oninput con Debounce en lugar de onkeydown Enter -->
-            <input type="text" id="searchInput" class="filter-input" placeholder="🔍 Buscar código" oninput="buscarConDebounce()">
+            <!-- OPTIMIZACIÓN 2: oninput con Debounce en lugar de onkeydown Enter + Teclado Numérico -->
+            <input type="text" id="searchInput" inputmode="numeric" pattern="[0-9]*" class="filter-input" placeholder="🔍 Buscar código" oninput="buscarConDebounce()">
             
             <select id="responsableFilter" class="filter-input" onchange="aplicarFiltros()">
                 <option value="">👤 Todos los operadores</option>
@@ -261,12 +261,14 @@
     </div>
 
     <script type="module">
-        // Se agregaron getDoc y setDoc para la optimización de lecturas
+        // Se agregaron getDoc, setDoc y enableIndexedDbPersistence para la optimización de lecturas
         import { initializeApp } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-app.js";
-        import { getFirestore, collection, onSnapshot, orderBy, query, writeBatch, getDocs, deleteDoc, doc, getDoc, setDoc, limit, startAfter, endBefore, limitToLast, getCountFromServer, where } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-firestore.js";
+        import { getFirestore, collection, onSnapshot, orderBy, query, writeBatch, getDocs, deleteDoc, doc, getDoc, setDoc, limit, startAfter, endBefore, limitToLast, getCountFromServer, where, enableIndexedDbPersistence } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-firestore.js";
 
-        // --- OPTIMIZACIÓN 5: CONFIGURACIÓN INDEXEDDB (Caché Local) ---
+        // --- OPTIMIZACIÓN 5: CONFIGURACIÓN INDEXEDDB (Caché Local con TTL 48h) ---
         const DB_NAME = "DashboardCacheDB";
+        const TTL_CACHE_MS = 48 * 60 * 60 * 1000; // 48 horas
+
         function initDB() {
             return new Promise((resolve, reject) => {
                 const req = indexedDB.open(DB_NAME, 1);
@@ -283,8 +285,9 @@
                 const tx = dbIDB.transaction("registros", "readwrite");
                 const store = tx.objectStore("registros");
                 store.clear();
+                const ahora = Date.now();
                 datos.forEach(item => {
-                    let cacheItem = { ...item };
+                    let cacheItem = { ...item, cachedAt: ahora };
                     if (cacheItem.timestamp && typeof cacheItem.timestamp.toDate === 'function') {
                         cacheItem.timestampMs = cacheItem.timestamp.toDate().getTime();
                         delete cacheItem.timestamp; 
@@ -301,10 +304,13 @@
                     const store = tx.objectStore("registros");
                     const req = store.getAll();
                     req.onsuccess = () => {
-                        let datos = req.result.map(d => {
-                            if (d.timestampMs) d.timestamp = { toDate: () => new Date(d.timestampMs) };
-                            return d;
-                        });
+                        const ahora = Date.now();
+                        let datos = req.result
+                            .filter(d => !d.cachedAt || (ahora - d.cachedAt) <= TTL_CACHE_MS)
+                            .map(d => {
+                                if (d.timestampMs) d.timestamp = { toDate: () => new Date(d.timestampMs) };
+                                return d;
+                            });
                         datos.sort((a,b) => b.timestampMs - a.timestampMs);
                         resolve(datos);
                     };
@@ -360,6 +366,11 @@
 
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
+
+        enableIndexedDbPersistence(db).catch((err) => {
+            console.warn("Persistencia IndexedDB no disponible:", err.code);
+        });
+
         const colHistorial = collection(db, "historial_registros");
 
         let datosFiltrados = [];

@@ -419,7 +419,7 @@
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js";
-        import { getFirestore, collection, onSnapshot, orderBy, query, doc, deleteDoc, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js";
+        import { getFirestore, collection, onSnapshot, orderBy, query, doc, deleteDoc, addDoc, serverTimestamp, enableIndexedDbPersistence } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyCzZFPcSUPwWYIe4w3IW7pDluIchGMqWoU",
@@ -432,6 +432,72 @@
 
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
+
+        enableIndexedDbPersistence(db).catch((err) => {
+            console.warn("Persistencia IndexedDB no disponible:", err.code);
+        });
+
+        // --- CACHÉ LOCAL INDEXEDDB CON TTL DE 48 HORAS ---
+        const CHECK_CACHE_DB = "CheckProductosCacheDB";
+        const CHECK_TTL_MS = 48 * 60 * 60 * 1000;
+
+        function initCheckCacheDB() {
+            return new Promise((resolve, reject) => {
+                const req = indexedDB.open(CHECK_CACHE_DB, 1);
+                req.onupgradeneeded = (e) => {
+                    e.target.result.createObjectStore("historial", { keyPath: "id" });
+                };
+                req.onsuccess = () => resolve(req.result);
+                req.onerror = () => reject(req.error);
+            });
+        }
+
+        async function guardarHistorialEnCache(lista) {
+            try {
+                const dbIDB = await initCheckCacheDB();
+                const tx = dbIDB.transaction("historial", "readwrite");
+                const store = tx.objectStore("historial");
+                store.clear();
+                const ahora = Date.now();
+                lista.slice(0, 300).forEach(item => {
+                    let copia = { ...item, cachedAt: ahora };
+                    if (copia.timestamp && typeof copia.timestamp.toDate === "function") {
+                        copia.timestampMs = copia.timestamp.toDate().getTime();
+                        delete copia.timestamp;
+                    }
+                    store.put(copia);
+                });
+            } catch (e) {}
+        }
+
+        async function cargarHistorialDeCache() {
+            try {
+                const dbIDB = await initCheckCacheDB();
+                return new Promise((resolve) => {
+                    const tx = dbIDB.transaction("historial", "readonly");
+                    const store = tx.objectStore("historial");
+                    const req = store.getAll();
+                    req.onsuccess = () => {
+                        const ahora = Date.now();
+                        const validos = req.result
+                            .filter(d => !d.cachedAt || (ahora - d.cachedAt) <= CHECK_TTL_MS)
+                            .map(d => {
+                                if (d.timestampMs) {
+                                    d.timestamp = {
+                                        toDate: () => new Date(d.timestampMs),
+                                        toMillis: () => d.timestampMs
+                                    };
+                                }
+                                return d;
+                            });
+                        validos.sort((a, b) => (b.timestampMs || 0) - (a.timestampMs || 0));
+                        resolve(validos);
+                    };
+                    req.onerror = () => resolve([]);
+                });
+            } catch (e) { return []; }
+        }
+
         const colRegistros = collection(db, "registros");
         const colHistorial = collection(db, "historial_total");
 
@@ -540,6 +606,14 @@
         }
         inicializarFechaActual();
 
+        // Carga instantánea desde caché local antes de que responda la red
+        cargarHistorialDeCache().then(cache => {
+            if (cache && cache.length > 0 && historialTotal.length === 0) {
+                historialTotal = cache;
+                if (!modoAuditoria) window.debouncedActualizarDashboard();
+            }
+        });
+
         let chartUbicacionesInstance = null;
         let chartCodigosInstance = null;
         let timeoutActualizacion = null; 
@@ -596,6 +670,7 @@
         // NOTA: Se revirtió la consulta con 'where' de fechas para evitar errores si no hay índices en Firebase.
         onSnapshot(query(colHistorial, orderBy("timestamp", "desc")), (snapHistorial) => {
             historialTotal = snapHistorial.docs.map(doc => ({ id: doc.id, ...doc.data() })).filter(item => (item.ubicacion || "").trim() !== "No encontrado");
+            guardarHistorialEnCache(historialTotal);
             if (!modoAuditoria) {
                 window.debouncedActualizarDashboard();
             }
@@ -919,7 +994,7 @@
 
         function limpiarGraficos() {
             if (chartUbicacionesInstance) { chartUbicacionesInstance.destroy(); chartUbicacionesInstance = null; }
-            if (chartCodigosInstance) { chartCodigosInstance.destroy(); chartCodigosInstance = null; }
+            if (chartCodigosInstance) { chartUbicacionesInstance.destroy(); chartCodigosInstance = null; }
         }
     </script>
 </body>

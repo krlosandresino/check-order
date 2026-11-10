@@ -178,7 +178,8 @@
                    id="pinInput" 
                    placeholder="PIN de acceso..." 
                    autocomplete="off" 
-                   inputmode="numeric">
+                   inputmode="numeric"
+                   pattern="[0-9]*">
 
             <button onclick="ingresarResponsable()" id="loginBtn">Entrar al Sistema</button>
         </div>
@@ -259,6 +260,41 @@
         const colRegistros = collection(db, "registros");
         const colUbicaciones = collection(db, "ubicaciones_diarias");
         const colHistorial = collection(db, "historial_registros");
+
+        // --- CACHÉ INTELIGENTE CON TTL DE 48 HORAS ---
+        const CACHE_BUSCADOR_KEY = "buscadorMapaProductos";
+        const TTL_BUSCADOR_MS = 48 * 60 * 60 * 1000; // 48 horas
+        let cacheProductosLocal = {};
+
+        try {
+            const guardado = localStorage.getItem(CACHE_BUSCADOR_KEY);
+            if (guardado) {
+                cacheProductosLocal = JSON.parse(guardado);
+                const ahora = Date.now();
+                let limpiado = false;
+                Object.keys(cacheProductosLocal).forEach(cod => {
+                    if (!cacheProductosLocal[cod].ts || (ahora - cacheProductosLocal[cod].ts) > TTL_BUSCADOR_MS) {
+                        delete cacheProductosLocal[cod];
+                        limpiado = true;
+                    }
+                });
+                if (limpiado) localStorage.setItem(CACHE_BUSCADOR_KEY, JSON.stringify(cacheProductosLocal));
+            }
+        } catch (e) {}
+
+        const guardarProductoEnCache = (cod, nombre, ubicacion) => {
+            cacheProductosLocal[cod] = { nombre, ubicacion, ts: Date.now() };
+            try { localStorage.setItem(CACHE_BUSCADOR_KEY, JSON.stringify(cacheProductosLocal)); } catch (e) {}
+        };
+
+        const obtenerProductoDeCache = (cod) => {
+            const item = cacheProductosLocal[cod];
+            if (item && item.ts && (Date.now() - item.ts) <= TTL_BUSCADOR_MS) {
+                return item;
+            }
+            delete cacheProductosLocal[cod];
+            return null;
+        };
 
         // APP SECUNDARIA (REALTIME DB - Para verificar los usuarios creados en usuarios.html)
         const authConfig = {
@@ -456,15 +492,22 @@
             input.focus();
 
             try {
-                const docRef = doc(db, "ubicaciones_diarias", cod);
-                const docSnap = await getDoc(docRef);
-                
                 let nombreProd = "No encontrado";
                 let ubicacionProd = "No encontrado";
 
-                if (docSnap.exists()) {
-                    nombreProd = docSnap.data().nombre;
-                    ubicacionProd = docSnap.data().ubicacion;
+                const enCache = obtenerProductoDeCache(cod);
+                if (enCache) {
+                    nombreProd = enCache.nombre;
+                    ubicacionProd = enCache.ubicacion;
+                } else {
+                    const docRef = doc(db, "ubicaciones_diarias", cod);
+                    const docSnap = await getDoc(docRef);
+
+                    if (docSnap.exists()) {
+                        nombreProd = docSnap.data().nombre;
+                        ubicacionProd = docSnap.data().ubicacion;
+                        guardarProductoEnCache(cod, nombreProd, ubicacionProd);
+                    }
                 }
 
                 const dataAGuardar = {
@@ -610,6 +653,9 @@
                         }
                         if (contadorBatch > 0) await batch.commit();
 
+                        localStorage.removeItem(CACHE_BUSCADOR_KEY);
+                        cacheProductosLocal = {};
+
                         progreso.innerText = "✅ ¡Carga Completa!";
                         progreso.style.color = "green";
                         alert(`Éxito: Se actualizaron ${totalProcesados} productos.`);
@@ -640,6 +686,8 @@
                 estabaActualizando = true;
             } else {
                 if (estabaActualizando) {
+                    localStorage.removeItem(CACHE_BUSCADOR_KEY);
+                    cacheProductosLocal = {};
                     window.location.reload();
                 } else {
                     document.getElementById('updateOverlay').style.display = 'none';
