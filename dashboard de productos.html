@@ -403,7 +403,7 @@
             if (inputComentario) inputComentario.value = "";
         }
 
-        // OPTIMIZACIÓN 2 Y 3: Pegado directo con URL.createObjectURL, fondo blanco anti-transparencia y compresión WebP
+        // Pegado directo con URL.createObjectURL, fondo blanco anti-transparencia y compresión WebP
         window.addEventListener("paste", function(e) {
             const modal = document.getElementById("modalEnviarImagen");
             if (modal.classList.contains("hidden")) return;
@@ -416,7 +416,7 @@
                     const img = new Image();
 
                     img.onload = function() {
-                        URL.revokeObjectURL(objectUrl); // Libera la RAM inmediatamente
+                        URL.revokeObjectURL(objectUrl);
 
                         const canvas = document.createElement("canvas");
                         const maxDim = 900;
@@ -435,12 +435,10 @@
                         canvas.height = height;
                         const ctx = canvas.getContext("2d");
 
-                        // Pinta fondo blanco sólido para evitar cuadros negros en recortes transparentes (Excel/PNG)
                         ctx.fillStyle = "#ffffff";
                         ctx.fillRect(0, 0, width, height);
                         ctx.drawImage(img, 0, 0, width, height);
 
-                        // Compresión ligera en WebP (con respaldo automático a JPEG)
                         let dataUrl = canvas.toDataURL("image/webp", 0.78);
                         if (dataUrl.indexOf("data:image/webp") !== 0) {
                             dataUrl = canvas.toDataURL("image/jpeg", 0.78);
@@ -476,7 +474,6 @@
             const select = document.getElementById("selectOperadorMensaje");
             const input = document.getElementById("inputTextoMensaje");
             
-            // Llenar select con operadores activos
             select.innerHTML = '<option value="">Seleccione un operador...</option>';
             if (window.nombresOperadoresActivos && window.nombresOperadoresActivos.length > 0) {
                 window.nombresOperadoresActivos.forEach(nombre => {
@@ -755,7 +752,6 @@
         }
         inicializarFechaActual();
 
-        // Carga instantánea desde caché local antes de que responda la red
         cargarHistorialDeCache().then(cache => {
             if (cache && cache.length > 0 && historialTotal.length === 0) {
                 historialTotal = cache;
@@ -816,7 +812,6 @@
             }
         });
 
-        // NOTA: Se revirtió la consulta con 'where' de fechas para evitar errores si no hay índices en Firebase.
         onSnapshot(query(colHistorial, orderBy("timestamp", "desc")), (snapHistorial) => {
             historialTotal = snapHistorial.docs.map(doc => ({ id: doc.id, ...doc.data() })).filter(item => (item.ubicacion || "").trim() !== "No encontrado");
             guardarHistorialEnCache(historialTotal);
@@ -917,7 +912,7 @@
             actualizarGraficos(unidadesPorUbicacionCod, unidadesPorCodigo, codigosPorUbicacionCod);
         }
 
-        // --- OPTIMIZACIÓN 1: ENVÍO SIN CONDICIÓN DE CARRERA (VERIFICA idEnvio ANTES DE BORRAR) ---
+        // --- ENVÍO DE IMAGEN TEMPORAL SIN PISAR ENVÍOS CONSECUTIVOS ---
         window.enviarImagenTemporal = async () => {
             if (!window.imagenTemporalBase64) return alert("Primero pega una imagen con Ctrl + V.");
             const btn = document.getElementById("btnConfirmarEnvioImagen");
@@ -928,12 +923,13 @@
                 btn.disabled = true;
                 btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Enviando...';
 
+                // Cancela cualquier temporizador de limpieza anterior para que nunca borre la nueva imagen
                 if (window.timeoutAutoBorradoImg) {
                     clearTimeout(window.timeoutAutoBorradoImg);
                     window.timeoutAutoBorradoImg = null;
                 }
 
-                const idEnvioActual = Date.now();
+                const idEnvioActual = Date.now() + "_" + Math.random().toString(36).substring(2, 7);
                 await setDoc(refImgTemp, {
                     imagenBase64: window.imagenTemporalBase64,
                     comentario: comentario,
@@ -943,7 +939,7 @@
 
                 cerrarModalEnviarImagen();
 
-                // Respaldo centralizado: solo borra el documento si sigue correspondiendo a este mismo envío
+                // Respaldo de limpieza a los 15s (verifica que el idEnvio siga siendo el mismo antes de borrar)
                 window.timeoutAutoBorradoImg = setTimeout(async () => {
                     try {
                         const snapActual = await getDoc(refImgTemp);
@@ -951,7 +947,7 @@
                             await deleteDoc(refImgTemp);
                         }
                     } catch (e) {}
-                }, 12000);
+                }, 15000);
 
             } catch (error) {
                 alert("Error al enviar la imagen: " + error.message);

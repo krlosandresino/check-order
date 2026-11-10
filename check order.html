@@ -269,10 +269,11 @@
         const colMensajesDirectos = collection(db, "mensajes_directos");
         const refImagenTemporal = doc(db, "configuracion", "imagen_temporal");
 
-        // --- OPTIMIZACIÓN 4 Y 5: RECEPCIÓN CON FILTRO ANTI-FANTASMA, CONTEO EN img.onload Y AHORRO DE ESCRITURAS ---
+        // --- SISTEMA BLINDADO DE IMAGEN TEMPORAL (10 SEGUNDOS EXACTOS SIN CIERRES PREMATUROS) ---
         let intervaloImagenTemporal = null;
         let timeoutImagenTemporal = null;
-        let ultimoIdEnvioMostrado = null;
+        let ultimoIdEnvioMostrado = sessionStorage.getItem("ultimoIdImgTemp") || null;
+        let cargaInicialImagen = true;
 
         const limpiarTimersImagenTemporal = () => {
             if (intervaloImagenTemporal) { clearInterval(intervaloImagenTemporal); intervaloImagenTemporal = null; }
@@ -294,7 +295,7 @@
             }
         };
 
-        // Cuando el operador presiona manualmente "✖ Cerrar pantalla", oculta de inmediato y elimina de Firebase
+        // Al presionar "✖ Cerrar pantalla" o cumplirse los 10s locales, oculta y limpia Firebase
         window.cerrarYBorrarImagenTemporal = async () => {
             ocultarModalImagenLocal();
             try {
@@ -305,20 +306,25 @@
         };
 
         onSnapshot(refImagenTemporal, (docSnap) => {
+            if (cargaInicialImagen) {
+                cargaInicialImagen = false;
+                // Si al abrir o recargar la página había un residuo viejo, lo registra e ignora para no mostrarlo de golpe
+                if (docSnap.exists() && docSnap.data().idEnvio) {
+                    ultimoIdEnvioMostrado = String(docSnap.data().idEnvio);
+                    sessionStorage.setItem("ultimoIdImgTemp", ultimoIdEnvioMostrado);
+                }
+                return;
+            }
+
             if (docSnap.exists() && docSnap.data().imagenBase64) {
                 const data = docSnap.data();
-                const idEnvio = data.idEnvio || 0;
+                const idEnvio = String(data.idEnvio || "");
 
-                // Evita volver a abrir la misma imagen si ya fue mostrada o cerrada en esta pantalla
+                // Si es exactamente el mismo envío que ya se está mostrando en pantalla, no reinicia ni corta el conteo
                 if (idEnvio && idEnvio === ultimoIdEnvioMostrado) return;
 
-                // Filtro anti-fantasma: descarta imágenes con más de 20 segundos de antigüedad (ej. al reconectar internet)
-                if (idEnvio && (Date.now() - idEnvio) > 20000) {
-                    deleteDoc(refImagenTemporal).catch(() => {});
-                    return;
-                }
-
                 ultimoIdEnvioMostrado = idEnvio;
+                sessionStorage.setItem("ultimoIdImgTemp", idEnvio);
                 limpiarTimersImagenTemporal();
 
                 const overlay = document.getElementById('modalImagenTemporalOverlay');
@@ -334,47 +340,39 @@
                     txtComentario.style.display = 'none';
                 }
 
-                // Inicia los 10 segundos exactos únicamente cuando la imagen ya se decodificó y está visible
-                imgVista.onload = () => {
-                    limpiarTimersImagenTemporal();
-                    overlay.style.display = 'flex';
-
-                    let segundosRestantes = 10;
-                    badgeContador.innerText = `⏱️ ${segundosRestantes}s`;
-
-                    intervaloImagenTemporal = setInterval(() => {
-                        segundosRestantes--;
-                        if (segundosRestantes > 0) {
-                            badgeContador.innerText = `⏱️ ${segundosRestantes}s`;
-                        }
-                    }, 1000);
-
-                    timeoutImagenTemporal = setTimeout(() => {
-                        ocultarModalImagenLocal();
-                        deleteDoc(refImagenTemporal).catch(() => {});
-                    }, 10000);
-                };
-
                 imgVista.src = data.imagenBase64;
-            } else {
-                ocultarModalImagenLocal();
+                overlay.style.display = 'flex';
+
+                let segundosRestantes = 10;
+                badgeContador.innerText = `⏱️ ${segundosRestantes}s`;
+
+                intervaloImagenTemporal = setInterval(() => {
+                    segundosRestantes--;
+                    if (segundosRestantes > 0) {
+                        badgeContador.innerText = `⏱️ ${segundosRestantes}s`;
+                    }
+                }, 1000);
+
+                timeoutImagenTemporal = setTimeout(() => {
+                    window.cerrarYBorrarImagenTemporal();
+                }, 10000);
             }
+            // NOTA CLAVE: No cerramos el modal en el bloque "else" cuando el documento se borra en Firebase,
+            // garantizando así que la pantalla cumpla siempre sus 10 segundos completos salvo cierre manual.
         });
-        // ---------------------------------------------------------------------------
+        // -----------------------------------------------------------------------------------------
 
         // --- SISTEMA DE GESTIÓN DE NOMBRES ---
         let nombresOperadores = [];
 
-        // Escuchar cambios en tiempo real desde Firebase (Cero LocalStorage)
         onSnapshot(doc(db, "configuracion", "operadores"), (docSnap) => {
             if (docSnap.exists() && docSnap.data().lista) {
                 nombresOperadores = docSnap.data().lista;
             } else {
-                nombresOperadores = []; // Si no hay datos en Firebase, la lista queda totalmente vacía
+                nombresOperadores = [];
             }
-            nombresOperadores.sort(); // <-- Ordena A-Z
+            nombresOperadores.sort();
             
-            // Actualizar la interfaz si los modales están abiertos
             renderizarNombresSeleccion();
             renderizarNombresGestion();
         });
@@ -424,7 +422,6 @@
                 nuevaLista.sort();
                 
                 try {
-                    // Guarda la lista en Firebase
                     await setDoc(doc(db, "configuracion", "operadores"), { lista: nuevaLista }, { merge: true });
                     document.getElementById('nuevoNombreInput').value = '';
                     document.getElementById('nuevoNombreInput').focus();
@@ -442,7 +439,6 @@
             nuevaLista.splice(index, 1);
             
             try {
-                // Elimina el elemento subiendo la nueva lista a Firebase
                 await setDoc(doc(db, "configuracion", "operadores"), { lista: nuevaLista }, { merge: true });
             } catch (error) {
                 alert("Error al eliminar en la nube: " + error.message);
@@ -463,12 +459,11 @@
                 ).join('');
             }
         };
-        // -------------------------------------
 
-        // Optimización Segura: Caché de ubicaciones con TTL de 48 horas para refrescar inteligentemente
+        // Optimización Segura: Caché de ubicaciones con TTL de 48 horas
         const CACHE_KEY = "checkMapaUbicaciones";
         const CACHE_TTL_KEY = "checkMapaUbicaciones_ttl";
-        const TTL_MS = 48 * 60 * 60 * 1000; // 48 horas
+        const TTL_MS = 48 * 60 * 60 * 1000;
         let mapaUbicaciones = {};
         let mapaUbicacionesTtl = {};
 
@@ -481,7 +476,6 @@
             try { mapaUbicacionesTtl = JSON.parse(cacheTtlGuardada); } catch(e) {}
         }
 
-        // Limpieza inicial de códigos con más de 48 horas en caché
         const ahoraInit = Date.now();
         let huboLimpiezaTtl = false;
         Object.keys(mapaUbicaciones).forEach(cod => {
@@ -755,7 +749,6 @@
             procesarGuardadoSincrono(nombre, codigo, cantidad, ubicacion, codigoInput, cantidadInput);
         };
 
-        // SE ACTUALIZÓ PARA QUE VUELVA A PONER EL 1 DESPUÉS DE GUARDAR
         const procesarGuardadoSincrono = (nombre, codigo, cantidad, ubicacion, codigoInput, cantidadInput) => {
             const data = { nombre, codigo, cantidad, ubicacion, timestamp: serverTimestamp() };
             
@@ -999,7 +992,6 @@
             if (e.key === 'Enter') window.agregarNombre();
         });
 
-        // SE ACTUALIZÓ PARA SELECCIONAR Y COLOCAR EL 1 AL DAR ENTER EN EL CÓDIGO
         document.getElementById('codigoInput').addEventListener('keydown', async (e) => { 
             if (e.key === 'Enter') {
                 const cod = document.getElementById('codigoInput').value.trim();
@@ -1060,23 +1052,20 @@
             if (docSnap.exists()) {
                 const data = docSnap.data();
 
-                // 1. Verificamos si hubo una actualización mientras la página estaba cerrada
                 const cacheTimestamp = localStorage.getItem("timestamp_cache") || 0;
                 if (data.ultima_actualizacion && data.ultima_actualizacion > cacheTimestamp) {
-                    localStorage.removeItem(CACHE_KEY); // Borramos el caché viejo
+                    localStorage.removeItem(CACHE_KEY);
                     localStorage.removeItem(CACHE_TTL_KEY);
-                    localStorage.setItem("timestamp_cache", data.ultima_actualizacion); // Guardamos la nueva fecha
-                    mapaUbicaciones = {}; // Limpiamos la memoria local
+                    localStorage.setItem("timestamp_cache", data.ultima_actualizacion);
+                    mapaUbicaciones = {};
                     mapaUbicacionesTtl = {};
                 }
 
-                // 2. Lógica normal de bloqueo en tiempo real
                 if (data.actualizando === true) {
                     document.getElementById('updateOverlay').style.display = 'flex';
                     estabaActualizando = true;
                 } else {
                     if (estabaActualizando) {
-                        // Limpieza del LocalStorage añadida aquí
                         localStorage.removeItem(CACHE_KEY);
                         localStorage.removeItem(CACHE_TTL_KEY);
                         localStorage.setItem("timestamp_cache", data.ultima_actualizacion || Date.now());
