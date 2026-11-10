@@ -82,6 +82,22 @@
         <p style="color:#94a3b8; font-size:15px; margin-top:10px; max-width:80%;">Por favor, espera un momento. El sistema se desbloqueará automáticamente.</p>
     </div>
 
+    <!-- PANTALLA FLOTANTE PARA IMAGEN TEMPORAL (10 SEGUNDOS) -->
+    <div id="modalImagenTemporalOverlay" class="modal-overlay" style="z-index: 9999;">
+        <div class="modal-caja" style="width: 90%; max-width: 620px; padding: 20px; position: relative; border-top: 6px solid #6f42c1;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                <h3 style="margin: 0; color: #333; font-size: 18px;">🖼️ Novedad Recibida</h3>
+                <span id="contadorImagenTemporal" style="background: #f3e8ff; color: #6b21a8; padding: 4px 10px; border-radius: 20px; font-size: 13px; font-weight: bold;">⏱️ 10s</span>
+            </div>
+            <!-- Comentario de la imagen temporal -->
+            <p id="textoComentarioImagenTemporal" style="display: none; margin: 0 0 12px 0; padding: 10px 14px; background: #f3e8ff; color: #4c1d95; border-left: 5px solid #6f42c1; border-radius: 6px; font-size: 16px; font-weight: bold; text-align: left; word-wrap: break-word;"></p>
+            <div style="background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 8px; padding: 10px; margin-bottom: 15px; display: flex; justify-content: center; align-items: center; max-height: 65vh; overflow: hidden;">
+                <img id="imgTemporalVista" src="" alt="Novedad" style="max-width: 100%; max-height: 60vh; border-radius: 6px; object-fit: contain;" />
+            </div>
+            <button onclick="cerrarYBorrarImagenTemporal()" class="btn-borrar" style="width: 100%; padding: 12px; font-size: 15px; background-color: #dc3545;">✖ Cerrar pantalla</button>
+        </div>
+    </div>
+
     <div class="header-container">
         <h1>🖥️ Panel - Check Order</h1>
         <div style="display: flex; gap: 10px; align-items: center;">
@@ -251,6 +267,100 @@
         const colHistorial = collection(db, "historial_total");
         const colAvisos = collection(db, "avisos");
         const colMensajesDirectos = collection(db, "mensajes_directos");
+        const refImagenTemporal = doc(db, "configuracion", "imagen_temporal");
+
+        // --- OPTIMIZACIÓN 4 Y 5: RECEPCIÓN CON FILTRO ANTI-FANTASMA, CONTEO EN img.onload Y AHORRO DE ESCRITURAS ---
+        let intervaloImagenTemporal = null;
+        let timeoutImagenTemporal = null;
+        let ultimoIdEnvioMostrado = null;
+
+        const limpiarTimersImagenTemporal = () => {
+            if (intervaloImagenTemporal) { clearInterval(intervaloImagenTemporal); intervaloImagenTemporal = null; }
+            if (timeoutImagenTemporal) { clearTimeout(timeoutImagenTemporal); timeoutImagenTemporal = null; }
+        };
+
+        const ocultarModalImagenLocal = () => {
+            limpiarTimersImagenTemporal();
+            const overlay = document.getElementById('modalImagenTemporalOverlay');
+            const imgVista = document.getElementById('imgTemporalVista');
+            const txtComentario = document.getElementById('textoComentarioImagenTemporal');
+
+            overlay.style.display = 'none';
+            imgVista.onload = null;
+            imgVista.src = '';
+            if (txtComentario) {
+                txtComentario.innerText = '';
+                txtComentario.style.display = 'none';
+            }
+        };
+
+        // Cuando el operador presiona manualmente "✖ Cerrar pantalla", oculta de inmediato y elimina de Firebase
+        window.cerrarYBorrarImagenTemporal = async () => {
+            ocultarModalImagenLocal();
+            try {
+                await deleteDoc(refImagenTemporal);
+            } catch (e) {
+                console.error("Error borrando imagen temporal:", e);
+            }
+        };
+
+        onSnapshot(refImagenTemporal, (docSnap) => {
+            if (docSnap.exists() && docSnap.data().imagenBase64) {
+                const data = docSnap.data();
+                const idEnvio = data.idEnvio || 0;
+
+                // Evita volver a abrir la misma imagen si ya fue mostrada o cerrada en esta pantalla
+                if (idEnvio && idEnvio === ultimoIdEnvioMostrado) return;
+
+                // Filtro anti-fantasma: descarta imágenes con más de 20 segundos de antigüedad (ej. al reconectar internet)
+                if (idEnvio && (Date.now() - idEnvio) > 20000) {
+                    deleteDoc(refImagenTemporal).catch(() => {});
+                    return;
+                }
+
+                ultimoIdEnvioMostrado = idEnvio;
+                limpiarTimersImagenTemporal();
+
+                const overlay = document.getElementById('modalImagenTemporalOverlay');
+                const imgVista = document.getElementById('imgTemporalVista');
+                const badgeContador = document.getElementById('contadorImagenTemporal');
+                const txtComentario = document.getElementById('textoComentarioImagenTemporal');
+
+                if (data.comentario && data.comentario.trim() !== "") {
+                    txtComentario.innerText = `💬 ${data.comentario}`;
+                    txtComentario.style.display = 'block';
+                } else {
+                    txtComentario.innerText = '';
+                    txtComentario.style.display = 'none';
+                }
+
+                // Inicia los 10 segundos exactos únicamente cuando la imagen ya se decodificó y está visible
+                imgVista.onload = () => {
+                    limpiarTimersImagenTemporal();
+                    overlay.style.display = 'flex';
+
+                    let segundosRestantes = 10;
+                    badgeContador.innerText = `⏱️ ${segundosRestantes}s`;
+
+                    intervaloImagenTemporal = setInterval(() => {
+                        segundosRestantes--;
+                        if (segundosRestantes > 0) {
+                            badgeContador.innerText = `⏱️ ${segundosRestantes}s`;
+                        }
+                    }, 1000);
+
+                    timeoutImagenTemporal = setTimeout(() => {
+                        ocultarModalImagenLocal();
+                        deleteDoc(refImagenTemporal).catch(() => {});
+                    }, 10000);
+                };
+
+                imgVista.src = data.imagenBase64;
+            } else {
+                ocultarModalImagenLocal();
+            }
+        });
+        // ---------------------------------------------------------------------------
 
         // --- SISTEMA DE GESTIÓN DE NOMBRES ---
         let nombresOperadores = [];
